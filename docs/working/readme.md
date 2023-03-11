@@ -8,9 +8,10 @@
 - [ ] Current issue: is this enough of a warm up for this task?
 
 ### Part 1 - Basic multi processing
-- [ ] Parent: create multiple BitCoin headers for the threads to crack
-- [ ] Parent: fork
-- [ ] Child: brute force and print result
+- [X] Parent: create multiple BitCoin headers for the threads to crack
+- [X] Parent: fork
+- [X] Child: brute force and print result
 
 ### Part 2 - Synchronization
 - [ ] Challenge: What way should we use to inform other processes when a process finds a result?
+  - [X] Found a way to sync with just a boolean in shared mem. Doing it with, uh, someone way that has semaphore in it.
