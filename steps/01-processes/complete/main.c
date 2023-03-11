@@ -158,6 +158,10 @@ int main(){
         }
     }
     
+    for(int fork_num=0; fork_num<num_processes; fork_num++){
+        wait(NULL);
+    }
+    
     return 0;
     
 }
