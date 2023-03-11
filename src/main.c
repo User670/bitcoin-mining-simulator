@@ -46,11 +46,26 @@ void get_random_hash(unsigned char* digest){
     dsha(&a, sizeof(int), digest);
 }
 
+// gives a random bitcoin header.
+// @params
+//  *block: pointer to a header
+//  difficulty: the difficulty to be written to the header
+// @return
+//  void
+void get_random_header(BitcoinHeader* block, int difficulty){
+    block->version=2;
+    get_random_hash(&(block->previous_block_hash));
+    get_random_hash(&(block->merkle_root));
+    block->timestamp=time(NULL);
+    block->difficulty=difficulty;
+    block->nonce=0;
+}
+
 // converts a "difficulty" value (a 32-bit integer) to a target hash that can be
 // compared against
 // @params
 //  d: the difficulty value
-//  *target_storage: a 32-byte buffer to store the target
+//  *target_storage: pointer to a 32-byte buffer to store the target
 // @return
 //  void
 void construct_target(int d, const char* target_storage){
@@ -84,6 +99,26 @@ int is_good_block(BitcoinHeader* block, const char* target){
     }
 }
 
+// for multiprocessing
+// mines a single header
+// @params
+//  *block: pointer to a block to be mined
+//  *target: pointer to a expanded target
+// @return
+//  void
+void mine_single_block(BitcoinHeader* block, const char* target){
+    int i=0;
+    for(; i<=2147483647; i++){
+        block->nonce=i;
+        if(is_good_block(block, target)){
+            printf("CHILD PROCESS: nonce found %d\n", i);
+            break;
+        }
+        
+    }
+}
+
+
 int main(){
     // seed the random number generator
     srand(time(NULL));
@@ -93,7 +128,7 @@ int main(){
     char target[32];
     construct_target(difficulty, &target);
     
-    BitcoinHeader block;
+    /*BitcoinHeader block;
     block.version=2;
     get_random_hash(&(block.previous_block_hash));
     get_random_hash(&(block.merkle_root));
@@ -108,6 +143,23 @@ int main(){
             printf("nonce found: %d",i);
             break;
         }
+    }*/
+    
+    // Multiprocessing
+    int num_processes=5;
+    BitcoinHeader blocks[num_processes]; // is this not kosher?
+    pid_t pid;
+    for(int fork_num=0; fork_num<num_processes; fork_num++){
+        get_random_header(&blocks[fork_num], difficulty);
+        pid=fork();
+        if(pid==0){
+            mine_single_block(&blocks[fork_num], &target);
+            exit(0);
+        }
+    }
+    
+    for(int fork_num=0; fork_num<num_processes; fork_num++){
+        wait(NULL);
     }
     
     return 0;
