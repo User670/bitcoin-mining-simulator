@@ -262,7 +262,7 @@ int main(){
     
     for(int task_num=0; task_num<num_tasks; task_num++){
         // prepare task
-        get_random_header(&(sd->block), &target);
+        get_random_header(&(sd->block), difficulty);
         sd->result_found=0;
         
         // release children
