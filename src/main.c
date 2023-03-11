@@ -8,6 +8,7 @@
 #include <sys/mman.h>
 #include <string.h>
 #include <inttypes.h>
+#include <fcntl.h>
 
 #include "sha2.h"
 
@@ -118,13 +119,79 @@ void mine_single_block(BitcoinHeader* block, const char* target){
     }
 }
 
+typedef struct{
+    int result_found;
+    BitcoinHeader block;
+    char* target;
+    int no_more_jobs;
+}SharedData1;
+
+void process_miner(int id, SharedData1* sd){
+    printf("CHILD %d: spawned\n",id);
+    // prepare semaphore references
+    sem_t* issue_job_sync_sem=sem_open("/issuejob", O_RDWR);
+    sem_t* job_end_sync_sem=sem_open("/jobend", O_RDWR);
+    sem_t* result_found_mutex=sem_open("/resultfound", O_RDWR);
+    
+    // prepare vars
+    BitcoinHeader working_block;
+    
+    // main loop
+    while(1){
+        // wait for parent to issue job and release lock
+        //printf("CHILD %d: I'm waiting for parent to release issuejob\n",id);
+        sem_wait(issue_job_sync_sem);
+        //printf("CHILD %d: I'm released from issuejob\n",id);
+        // check `sd` for no-more-jobs signal
+        if(sd->no_more_jobs){
+            printf("CHILD %d: No more job flag raised, breaking out of main loop\n", id);
+            break;
+        }
+        
+        // make a copy of the block so that it doesn't mess with other processes
+        working_block=sd->block;
+        
+        //printf("CHILD %d: I'm entering main loop\n",id);
+        for(int i=0; i<=2147483647; i++){
+            if(sd->result_found){
+                // could have merged the conditional in the loop, but
+                // 1, I don't like cramming conditions in the loop,
+                // 2, I can print stuff here this way
+                printf("CHILD %d: Someone found result; breaking at i=%d\n", id, i);
+                break;
+            }
+            working_block.nonce=i;
+            if(is_good_block(&working_block, sd->target)){
+                //printf("CHILD %d: I found a nonce, waiting for mutex\n", id);
+                sem_wait(result_found_mutex);
+                //printf("CHILD %d: I'm in the mutex\n", id);
+                // *actually* make sure no one beat me to it
+                if(sd->result_found){
+                    printf("CHILD %d: I found a nonce, but someone beat me to it in writing it to the shared memory.\n",id);
+                }else{
+                    sd->result_found=1;
+                    sd->block.nonce=i;
+                    printf("CHILD %d: found a valid nonce %d\n", id, i);
+                }
+                sem_post(result_found_mutex);
+                //printf("CHILD %d: I'm out of the mutex\n", id);
+                break;
+            }
+        }
+        
+        // tell parent that I'm done
+        sem_post(job_end_sync_sem);
+    }
+    
+}
+
 
 int main(){
     // seed the random number generator
     srand(time(NULL));
     
     // C warm up: brute force one block
-    int difficulty=0x2003a30c;
+    int difficulty=0x1f03a30c;
     char target[32];
     construct_target(difficulty, &target);
     
@@ -146,6 +213,7 @@ int main(){
     }*/
     
     // Multiprocessing
+    /*
     int num_processes=5;
     BitcoinHeader blocks[num_processes]; // is this not kosher?
     pid_t pid;
@@ -156,6 +224,66 @@ int main(){
             mine_single_block(&blocks[fork_num], &target);
             exit(0);
         }
+    }
+    
+    for(int fork_num=0; fork_num<num_processes; fork_num++){
+        wait(NULL);
+    }
+    */
+    
+    // synchronization, or an attempt of it
+    int num_processes=5;
+    int num_tasks=10; // so that no endless loop is made
+    
+    // prepare shared memory
+    int fd=shm_open("/minejobs", O_CREAT|O_RDWR, 0666);
+    ftruncate(fd, sizeof(SharedData1));
+    SharedData1* sd=mmap(NULL, sizeof(SharedData1), PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+    sd->result_found=0;
+    sd->no_more_jobs=0;
+    sd->target=&target;
+    
+    //get_random_header(&(sd->block), &target);
+    
+    // prepare semaphores
+    sem_t* issue_job_sync_sem=sem_open("/issuejob",O_CREAT|O_RDWR, 0666, 0);
+    sem_t* job_end_sync_sem=sem_open("/jobend",O_CREAT|O_RDWR, 0666, 0);
+    sem_t* result_found_mutex=sem_open("/resultfound",O_CREAT|O_RDWR, 0666, 1);
+    
+    
+    pid_t pid;
+    for(int fork_num=0; fork_num<num_processes; fork_num++){
+        pid=fork();
+        if(pid==0){
+            process_miner(fork_num, sd);
+            exit(0);
+        }
+    }
+    
+    for(int task_num=0; task_num<num_tasks; task_num++){
+        // prepare task
+        get_random_header(&(sd->block), &target);
+        sd->result_found=0;
+        
+        // release children
+        for(int fork_num=0; fork_num<num_processes; fork_num++){
+            sem_post(issue_job_sync_sem);
+        }
+        
+        // wait for children to finish
+        for(int fork_num=0; fork_num<num_processes; fork_num++){
+            // could have merged with previous loop but, eh, it's clearer
+            // this way
+            sem_wait(job_end_sync_sem);
+        }
+        
+        // we should now have a result we could print
+        printf("PARENT: A result was found with nonce=%d\n",sd->block.nonce);
+    }
+    
+    sd->no_more_jobs=1;
+    for(int fork_num=0; fork_num<num_processes; fork_num++){
+        sem_post(issue_job_sync_sem);
     }
     
     for(int fork_num=0; fork_num<num_processes; fork_num++){
