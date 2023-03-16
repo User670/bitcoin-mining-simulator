@@ -1,4 +1,4 @@
-# 01-semaphores and shared mem: Assignment Prompts
+# 02-semaphores and shared mem: Assignment Prompts
 
 ## Changes from previous assignment's template code
 - A struct `SharedData` is added.
