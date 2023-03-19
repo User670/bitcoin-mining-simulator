@@ -19,3 +19,8 @@ A simple program that has multiple processes coordinated by semaphores and share
 - [ ] code clean up
 - [ ] dig holes
 - [ ] write prompt text
+
+## Implementation notes
+- During some time along the process, I switched `int num_processes` variable in `main()` to a `#define` macro. This is so that it's consistent with part 03 where I need to have a `NUM_THREADS` value to be accessed by processes.
+
+However, I did NOT touch `num_tasks` for this one, because this is meant to be a value used by the parent process and not children (and the parent should use shared memory to signal the end of tasks), thus it stayed in `main()` as a local variable.
