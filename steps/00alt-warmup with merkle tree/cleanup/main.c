@@ -112,91 +112,6 @@ int is_good_block(BitcoinHeader* block, const char* target){
     }
 }
 
-// for multiprocessing
-// mines a single header
-// @params
-//  *block: pointer to a block to be mined
-//  *target: pointer to a expanded target
-// @return
-//  void
-void mine_single_block(BitcoinHeader* block, const char* target){
-    int i=0;
-    for(; i<=2147483647; i++){
-        block->nonce=i;
-        if(is_good_block(block, target)){
-            printf("CHILD PROCESS: nonce found %d\n", i);
-            break;
-        }
-        
-    }
-}
-
-typedef struct{
-    int result_found;
-    BitcoinHeader block;
-    char* target;
-    int no_more_jobs;
-}SharedData1;
-
-void process_miner(int id, SharedData1* sd){
-    printf("CHILD %d: spawned\n",id);
-    // prepare semaphore references
-    sem_t* issue_job_sync_sem=sem_open("/issuejob", O_RDWR);
-    sem_t* job_end_sync_sem=sem_open("/jobend", O_RDWR);
-    sem_t* result_found_mutex=sem_open("/resultfound", O_RDWR);
-    
-    // prepare vars
-    BitcoinHeader working_block;
-    
-    // main loop
-    while(1){
-        // wait for parent to issue job and release lock
-        //printf("CHILD %d: I'm waiting for parent to release issuejob\n",id);
-        sem_wait(issue_job_sync_sem);
-        //printf("CHILD %d: I'm released from issuejob\n",id);
-        // check `sd` for no-more-jobs signal
-        if(sd->no_more_jobs){
-            printf("CHILD %d: No more job flag raised, breaking out of main loop\n", id);
-            break;
-        }
-        
-        // make a copy of the block so that it doesn't mess with other processes
-        working_block=sd->block;
-        
-        //printf("CHILD %d: I'm entering main loop\n",id);
-        for(int i=0; i<=2147483647; i++){
-            if(sd->result_found){
-                // could have merged the conditional in the loop, but
-                // 1, I don't like cramming conditions in the loop,
-                // 2, I can print stuff here this way
-                printf("CHILD %d: Someone found result; breaking at i=%d\n", id, i);
-                break;
-            }
-            working_block.nonce=i;
-            if(is_good_block(&working_block, sd->target)){
-                //printf("CHILD %d: I found a nonce, waiting for mutex\n", id);
-                sem_wait(result_found_mutex);
-                //printf("CHILD %d: I'm in the mutex\n", id);
-                // *actually* make sure no one beat me to it
-                if(sd->result_found){
-                    printf("CHILD %d: I found a nonce, but someone beat me to it in writing it to the shared memory.\n",id);
-                }else{
-                    sd->result_found=1;
-                    sd->block.nonce=i;
-                    printf("CHILD %d: found a valid nonce %d\n", id, i);
-                }
-                sem_post(result_found_mutex);
-                //printf("CHILD %d: I'm out of the mutex\n", id);
-                break;
-            }
-        }
-        
-        // tell parent that I'm done
-        sem_post(job_end_sync_sem);
-    }
-    
-}
-
 // calculate hash of two hashes combined.
 // params
 //  *a: pointer to a 32-byte buffer holding the first hash
@@ -272,10 +187,7 @@ void debug_print_hex_line(void* data, int bytes){
 }
 
 int main(){
-    // seed the random number generator
-    //srand(time(NULL));
     
-    // C warm up: brute force one block
     int difficulty=0x1f03a30c;
     char target[32];
     construct_target(difficulty, &target);

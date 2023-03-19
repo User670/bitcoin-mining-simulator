@@ -112,91 +112,6 @@ int is_good_block(BitcoinHeader* block, const char* target){
     }
 }
 
-// for multiprocessing
-// mines a single header
-// @params
-//  *block: pointer to a block to be mined
-//  *target: pointer to a expanded target
-// @return
-//  void
-void mine_single_block(BitcoinHeader* block, const char* target){
-    int i=0;
-    for(; i<=2147483647; i++){
-        block->nonce=i;
-        if(is_good_block(block, target)){
-            printf("CHILD PROCESS: nonce found %d\n", i);
-            break;
-        }
-        
-    }
-}
-
-typedef struct{
-    int result_found;
-    BitcoinHeader block;
-    char* target;
-    int no_more_jobs;
-}SharedData1;
-
-void process_miner(int id, SharedData1* sd){
-    printf("CHILD %d: spawned\n",id);
-    // prepare semaphore references
-    sem_t* issue_job_sync_sem=sem_open("/issuejob", O_RDWR);
-    sem_t* job_end_sync_sem=sem_open("/jobend", O_RDWR);
-    sem_t* result_found_mutex=sem_open("/resultfound", O_RDWR);
-    
-    // prepare vars
-    BitcoinHeader working_block;
-    
-    // main loop
-    while(1){
-        // wait for parent to issue job and release lock
-        //printf("CHILD %d: I'm waiting for parent to release issuejob\n",id);
-        sem_wait(issue_job_sync_sem);
-        //printf("CHILD %d: I'm released from issuejob\n",id);
-        // check `sd` for no-more-jobs signal
-        if(sd->no_more_jobs){
-            printf("CHILD %d: No more job flag raised, breaking out of main loop\n", id);
-            break;
-        }
-        
-        // make a copy of the block so that it doesn't mess with other processes
-        working_block=sd->block;
-        
-        //printf("CHILD %d: I'm entering main loop\n",id);
-        for(int i=0; i<=2147483647; i++){
-            if(sd->result_found){
-                // could have merged the conditional in the loop, but
-                // 1, I don't like cramming conditions in the loop,
-                // 2, I can print stuff here this way
-                printf("CHILD %d: Someone found result; breaking at i=%d\n", id, i);
-                break;
-            }
-            working_block.nonce=i;
-            if(is_good_block(&working_block, sd->target)){
-                //printf("CHILD %d: I found a nonce, waiting for mutex\n", id);
-                sem_wait(result_found_mutex);
-                //printf("CHILD %d: I'm in the mutex\n", id);
-                // *actually* make sure no one beat me to it
-                if(sd->result_found){
-                    printf("CHILD %d: I found a nonce, but someone beat me to it in writing it to the shared memory.\n",id);
-                }else{
-                    sd->result_found=1;
-                    sd->block.nonce=i;
-                    printf("CHILD %d: found a valid nonce %d\n", id, i);
-                }
-                sem_post(result_found_mutex);
-                //printf("CHILD %d: I'm out of the mutex\n", id);
-                break;
-            }
-        }
-        
-        // tell parent that I'm done
-        sem_post(job_end_sync_sem);
-    }
-    
-}
-
 // calculate hash of two hashes combined.
 // params
 //  *a: pointer to a 32-byte buffer holding the first hash
@@ -272,10 +187,7 @@ void debug_print_hex_line(void* data, int bytes){
 }
 
 int main(){
-    // seed the random number generator
-    //srand(time(NULL));
     
-    // C warm up: brute force one block
     int difficulty=0x1f03a30c;
     char target[32];
     construct_target(difficulty, &target);
@@ -284,69 +196,40 @@ int main(){
     char hash2[32]="GOKapMZXhEySXqki11jjDsPYOah29naz";
     char hash3[32]="V3UTzhOMIxL9eQPP3eRPWsYuztP7rtB7";
     
+    // TODO: construct your merkle tree.
+    /* hint: here's a graphical representation of the tree,
+       you can also find this in the task prompt:
+           c
+          / \
+         /   \
+        /     \
+       a      b
+      / \    /
+     1   2  3
+    */
     
-    MerkleTreeNode* node1=malloc(sizeof(MerkleTreeNode));
-    node1->is_data_node=1;
-    memcpy(&(node1->hash),&hash1,32);
-    node1->left=NULL;
-    node1->right=NULL;
-    
-    MerkleTreeNode* node2=malloc(sizeof(MerkleTreeNode));
-    node2->is_data_node=1;
-    memcpy(&(node2->hash),&hash2,32);
-    node2->left=NULL;
-    node2->right=NULL;
-    
-    MerkleTreeNode* node3=malloc(sizeof(MerkleTreeNode));
-    node3->is_data_node=1;
-    memcpy(&(node3->hash),&hash3,32);
-    node3->left=NULL;
-    node3->right=NULL;
-    
-    MerkleTreeNode* node12=malloc(sizeof(MerkleTreeNode));
-    node12->is_data_node=0;
-    node12->left=node1;
-    node12->right=node2;
-    
-    MerkleTreeNode* node34=malloc(sizeof(MerkleTreeNode));
-    node34->is_data_node=0;
-    node34->left=node3;
-    node34->right=NULL;
-    
-    MerkleTreeNode* node1234=malloc(sizeof(MerkleTreeNode));
-    node1234->is_data_node=0;
-    node1234->left=node12;
-    node1234->right=node34;
     
     BitcoinBlock block;
-    block.merkle_tree=node1234;
+    block.merkle_tree= /* pointer to your root node */;
     
     update_merkle_root(&block);
     
     debug_print_hex_line(&(block.header.merkle_root), 32);
-    // should be:
+    // If you used the random strings provided in the template,
+    // the hash that got printed out should be:
     // 22CF135928B9B43FB0B771C552D58CA343A74B3F5C59E928A282B448742021E1
     
+    // fill up rest of the fields in the block header
     block.header.version=4;
+    // pretend this is the genesis block, whose prev block hash is all 0
     memset(&(block.header.previous_block_hash), 0, 32);
     block.header.timestamp=time(NULL);
     block.header.difficulty=difficulty;
     block.header.nonce=0;
     
-    for(int i=0; i<2147483647; i++){
-        block.header.nonce=i;
-        if(is_good_block(&(block.header), &target)){
-            printf("Nonce found: %d\n", i);
-            break;
-        }
-    }
+    // TODO: write a loop to mine this block (brute force the nonce)
     
-    free(node1);
-    free(node2);
-    free(node3);
-    free(node12);
-    free(node34);
-    free(node1234);
+    // TODO: free your allocated memory
     
     return 0;
     
