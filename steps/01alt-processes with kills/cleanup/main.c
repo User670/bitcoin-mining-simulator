@@ -12,6 +12,8 @@
 
 #include "sha2.h"
 
+#define NUM_PROCESSES 5
+
 typedef struct{
     int version;
     char previous_block_hash[32];
@@ -131,11 +133,8 @@ int main(){
     char target[32];
     construct_target(difficulty, &target);
     
-    int num_processes=5;
-    
     BitcoinHeader block;
     get_random_header(&block, difficulty);
-    
     
     sigset_t set;
     struct sigaction sigact;
@@ -145,10 +144,10 @@ int main(){
     
     int i;
     pid_t pid_father = getpid();
-    pid_t pid_child[num_processes];
+    pid_t pid_child[NUM_PROCESSES];
     pid_t first_finisher;
     
-    for (i = 0; (i<num_processes)&&((pid_child[i]=fork())!=0); i++)
+    for (i = 0; (i<NUM_PROCESSES)&&((pid_child[i]=fork())!=0); i++)
         ;
     
     if (getpid() == pid_father){
@@ -158,13 +157,13 @@ int main(){
         
         
         printf("P> Signalling all other children\n");
-        for (i = 0; i < num_processes; i++) {
+        for (i = 0; i < NUM_PROCESSES; i++) {
             if (pid_child[i] != first_finisher)
                 kill(pid_child[i],SIGUSR1);
         }
 
         printf("P> Checking all children have terminated\n");
-        for (i = 0; i < num_processes; i++) {
+        for (i = 0; i < NUM_PROCESSES; i++) {
             wait(0);
         }
         

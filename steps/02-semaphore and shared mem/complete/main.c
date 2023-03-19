@@ -12,6 +12,8 @@
 
 #include "sha2.h"
 
+#define NUM_PROCESSES 5
+
 typedef struct{
     int version;
     char previous_block_hash[32];
@@ -232,7 +234,6 @@ int main(){
     */
     
     // synchronization, or an attempt of it
-    int num_processes=5;
     int num_tasks=10; // so that no endless loop is made
     
     // prepare shared memory
@@ -252,7 +253,7 @@ int main(){
     
     
     pid_t pid;
-    for(int fork_num=0; fork_num<num_processes; fork_num++){
+    for(int fork_num=0; fork_num<NUM_PROCESSES; fork_num++){
         pid=fork();
         if(pid==0){
             process_miner(fork_num, sd);
@@ -266,12 +267,12 @@ int main(){
         sd->result_found=0;
         
         // release children
-        for(int fork_num=0; fork_num<num_processes; fork_num++){
+        for(int fork_num=0; fork_num<NUM_PROCESSES; fork_num++){
             sem_post(issue_job_sync_sem);
         }
         
         // wait for children to finish
-        for(int fork_num=0; fork_num<num_processes; fork_num++){
+        for(int fork_num=0; fork_num<NUM_PROCESSES; fork_num++){
             // could have merged with previous loop but, eh, it's clearer
             // this way
             sem_wait(job_end_sync_sem);
@@ -282,11 +283,11 @@ int main(){
     }
     
     sd->no_more_jobs=1;
-    for(int fork_num=0; fork_num<num_processes; fork_num++){
+    for(int fork_num=0; fork_num<NUM_PROCESSES; fork_num++){
         sem_post(issue_job_sync_sem);
     }
     
-    for(int fork_num=0; fork_num<num_processes; fork_num++){
+    for(int fork_num=0; fork_num<NUM_PROCESSES; fork_num++){
         wait(NULL);
     }
     

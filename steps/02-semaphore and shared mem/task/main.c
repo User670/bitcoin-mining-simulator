@@ -12,6 +12,8 @@
 
 #include "sha2.h"
 
+#define NUM_PROCESSES 5
+
 typedef struct{
     int version;
     char previous_block_hash[32];
@@ -170,7 +172,6 @@ int main(){
     construct_target(difficulty, &target);
     
     // synchronization
-    int num_processes=5;
     int num_tasks=10; // so that no endless loop is made
     
     // prepare shared memory
@@ -182,7 +183,7 @@ int main(){
     // TODO
     
     pid_t pid;
-    for(int fork_num=0; fork_num<num_processes; fork_num++){
+    for(int fork_num=0; fork_num<NUM_PROCESSES; fork_num++){
         // TODO: fork and call `process_miner`
     }
     
@@ -198,7 +199,7 @@ int main(){
     
     // TODO: can we signal the forks to stop?
     
-    for(int fork_num=0; fork_num<num_processes; fork_num++){
+    for(int fork_num=0; fork_num<NUM_PROCESSES; fork_num++){
         wait(NULL);
     }
     

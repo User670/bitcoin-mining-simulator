@@ -11,6 +11,8 @@
 
 #include "sha2.h"
 
+#define NUM_PROCESSES 5
+
 typedef struct{
     int version;
     char previous_block_hash[32];
@@ -146,10 +148,9 @@ int main(){
     }*/
     
     // Multiprocessing
-    int num_processes=5;
-    BitcoinHeader blocks[num_processes]; // is this not kosher?
+    BitcoinHeader blocks[NUM_PROCESSES]; // is this not kosher?
     pid_t pid;
-    for(int fork_num=0; fork_num<num_processes; fork_num++){
+    for(int fork_num=0; fork_num<NUM_PROCESSES; fork_num++){
         get_random_header(&blocks[fork_num], difficulty);
         pid=fork();
         if(pid==0){
@@ -158,7 +159,7 @@ int main(){
         }
     }
     
-    for(int fork_num=0; fork_num<num_processes; fork_num++){
+    for(int fork_num=0; fork_num<NUM_PROCESSES; fork_num++){
         wait(NULL);
     }
     

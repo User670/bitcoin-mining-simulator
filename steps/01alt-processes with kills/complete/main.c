@@ -12,6 +12,8 @@
 
 #include "sha2.h"
 
+#define NUM_PROCESSES 5
+
 typedef struct{
     int version;
     char previous_block_hash[32];
@@ -171,7 +173,6 @@ int main(){
     */
     
     // Multiprocessing with kills
-    int num_processes=5;
     
     BitcoinHeader block;
     get_random_header(&block, difficulty);
@@ -190,14 +191,14 @@ int main(){
     
     int i;
     pid_t pid_father = getpid();
-    pid_t pid_child[num_processes];
+    pid_t pid_child[NUM_PROCESSES];
     pid_t first_finisher;
     
-    for (i = 0; (i<num_processes)&&((pid_child[i]=fork())!=0); i++)
+    for (i = 0; (i<NUM_PROCESSES)&&((pid_child[i]=fork())!=0); i++)
         ;
     // that's confusing for me tbh
     // I'd write:
-    // for(i=0; i<num_processes; i++){
+    // for(i=0; i<NUM_PROCESSES; i++){
     //     pid_child[i]=fork();
     //     if(pid_child[i]==0) break;
     // }
@@ -210,13 +211,13 @@ int main(){
         
         
         printf("P> Signalling all other children\n");
-        for (i = 0; i < num_processes; i++) {
+        for (i = 0; i < NUM_PROCESSES; i++) {
             if (pid_child[i] != first_finisher)
                 kill(pid_child[i],SIGUSR1);
         }
 
         printf("P> Checking all children have terminated\n");
-        for (i = 0; i < num_processes; i++) {
+        for (i = 0; i < NUM_PROCESSES; i++) {
             wait(0);
         }
         

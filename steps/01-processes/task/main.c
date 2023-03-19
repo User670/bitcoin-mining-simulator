@@ -11,6 +11,8 @@
 
 #include "sha2.h"
 
+#define NUM_PROCESSES 5
+
 typedef struct{
     int version;
     char previous_block_hash[32];
@@ -127,17 +129,16 @@ int main(){
     construct_target(difficulty, &target);
     
     // Multiprocessing
-    int num_processes=5;
-    BitcoinHeader blocks[num_processes];
+    BitcoinHeader blocks[NUM_PROCESSES];
     pid_t pid;
     
-    for(int i=0; i<num_processes; i++){
+    for(int i=0; i<NUM_PROCESSES; i++){
         get_random_header(&blocks[i], difficulty);
         // blocks[i] is ready to be mined
         // TODO
     }
     
-    // TODO (wait for child processes)
+    // TODO: wait for child processes
     
     return 0;
     

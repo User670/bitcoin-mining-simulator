@@ -12,6 +12,8 @@
 
 #include "sha2.h"
 
+#define NUM_PROCESSES 5
+
 typedef struct{
     int version;
     char previous_block_hash[32];
@@ -131,11 +133,8 @@ int main(){
     char target[32];
     construct_target(difficulty, &target);
     
-    int num_processes=5;
-    
     BitcoinHeader block;
     get_random_header(&block, difficulty);
-    
     
     sigset_t set;
     struct sigaction sigact;
@@ -144,7 +143,7 @@ int main(){
     
     int i;
     pid_t pid_father = getpid();
-    pid_t pid_child[num_processes];
+    pid_t pid_child[NUM_PROCESSES];
     pid_t first_finisher;
     
     // TODO: fork
