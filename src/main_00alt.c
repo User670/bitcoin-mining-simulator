@@ -21,6 +21,18 @@ typedef struct{
     int nonce;
 } BitcoinHeader;
 
+typedef struct MerkleTreeNode{
+    char hash[32];
+    int is_data_node; // use as boolean
+    struct MerkleTreeNode* left;
+    struct MerkleTreeNode* right;
+} MerkleTreeNode;
+
+typedef struct{
+    BitcoinHeader header;
+    MerkleTreeNode* merkle_tree;
+}BitcoinBlock;
+
 
 // requires `sha2.c`, `sha2.h`
 // computes double SHA - that is, SHA twice - for a given piece of input.
@@ -185,110 +197,156 @@ void process_miner(int id, SharedData1* sd){
     
 }
 
+// calculate hash of two hashes combined.
+// params
+//  *a: pointer to a 32-byte buffer holding the first hash
+//  *b: pointer to a 32-byte buffer holding the second hash
+//  *digest: pointer to a 32-byte buffer to store the result
+// returns
+//  void
+void merkle_hash(char* a, char* b, char* digest){
+    char s[64];
+    memcpy(&s, a, 32);
+    memcpy((&s[32]), b, 32);
+    dsha(&s, 64, digest);
+}
+
+// Update a block's merkle tree hashes and put the root hash in the header.
+// params
+//  *block: a POINTER to the block. Not header. Block.
+// returns
+//  void
+void update_merkle_root(BitcoinBlock* block){
+    // has to take a pointer
+    // taking the block itself makes C duplicate the value for the
+    // function, and unable to modify it outside
+    calculate_merkle_root_top_down(block->merkle_tree);
+    memcpy(&(block->header.merkle_root),&(block->merkle_tree->hash),32);
+}
+
+// Recursively calculate all hashes in a merkle tree.
+// params
+//  *node: pointer to the root node
+// returns
+//  void
+void calculate_merkle_root_top_down(MerkleTreeNode* node){
+    if(node->is_data_node){
+        return;
+    }
+    if(node->left==NULL){
+        perror("A non-data node of a merkle tree node has to have a left child.");
+        exit(1);
+    }else{
+        calculate_merkle_root_top_down(node->left);
+    }
+    if(node->right==NULL){
+        // when lacking a right child, left's hash is repeated
+        merkle_hash(&(node->left->hash),&(node->left->hash),&(node->hash));
+    }else{
+        calculate_merkle_root_top_down(node->right);
+        merkle_hash(&(node->left->hash),&(node->right->hash),&(node->hash));
+    }
+}
+
+// Print a continuous part of memory in hexadecimal.
+// params
+//  *data: pointer to the start of the memory to print
+//  bytes: how many bytes to print
+// return
+//  void
+void debug_print_hex(void* data, int bytes){
+    for(int i=0; i<bytes; i++){
+        printf("%02X",*((unsigned char*)data+i));
+    }
+}
+
+// Same as debug_print_hex, but also prints a \n at the end.
+// params
+//  *data: pointer to the start of the memory to print
+//  bytes: how many bytes to print
+// return
+//  void
+void debug_print_hex_line(void* data, int bytes){
+    debug_print_hex(data, bytes);
+    printf("\n");
+}
 
 int main(){
     // seed the random number generator
-    srand(time(NULL));
+    //srand(time(NULL));
     
     // C warm up: brute force one block
     int difficulty=0x1f03a30c;
     char target[32];
     construct_target(difficulty, &target);
     
-    /*BitcoinHeader block;
-    block.version=2;
-    get_random_hash(&(block.previous_block_hash));
-    get_random_hash(&(block.merkle_root));
-    block.timestamp=time(NULL);
-    block.difficulty=difficulty;
-    block.nonce=0;
+    char hash1[32]="bix9mFWm2NQLi6UY6u4B0MdU6eLbwWLd";
+    char hash2[32]="GOKapMZXhEySXqki11jjDsPYOah29naz";
+    char hash3[32]="V3UTzhOMIxL9eQPP3eRPWsYuztP7rtB7";
     
-    int i=0;
-    for(; i<=2147483647; i++){
-        block.nonce=i;
-        if(is_good_block(&block, &target)){
-            printf("nonce found: %d",i);
+    
+    MerkleTreeNode* node1=malloc(sizeof(MerkleTreeNode));
+    node1->is_data_node=1;
+    memcpy(&(node1->hash),&hash1,32);
+    node1->left=NULL;
+    node1->right=NULL;
+    
+    MerkleTreeNode* node2=malloc(sizeof(MerkleTreeNode));
+    node2->is_data_node=1;
+    memcpy(&(node2->hash),&hash2,32);
+    node2->left=NULL;
+    node2->right=NULL;
+    
+    MerkleTreeNode* node3=malloc(sizeof(MerkleTreeNode));
+    node3->is_data_node=1;
+    memcpy(&(node3->hash),&hash3,32);
+    node3->left=NULL;
+    node3->right=NULL;
+    
+    MerkleTreeNode* node12=malloc(sizeof(MerkleTreeNode));
+    node12->is_data_node=0;
+    node12->left=node1;
+    node12->right=node2;
+    
+    MerkleTreeNode* node34=malloc(sizeof(MerkleTreeNode));
+    node34->is_data_node=0;
+    node34->left=node3;
+    node34->right=NULL;
+    
+    MerkleTreeNode* node1234=malloc(sizeof(MerkleTreeNode));
+    node1234->is_data_node=0;
+    node1234->left=node12;
+    node1234->right=node34;
+    
+    BitcoinBlock block;
+    block.merkle_tree=node1234;
+    
+    update_merkle_root(&block);
+    
+    debug_print_hex_line(&(block.header.merkle_root), 32);
+    // should be:
+    // 22CF135928B9B43FB0B771C552D58CA343A74B3F5C59E928A282B448742021E1
+    
+    block.header.version=4;
+    memset(&(block.header.previous_block_hash), 0, 32);
+    block.header.timestamp=time(NULL);
+    block.header.difficulty=difficulty;
+    block.header.nonce=0;
+    
+    for(int i=0; i<2147483647; i++){
+        block.header.nonce=i;
+        if(is_good_block(&(block.header), &target)){
+            printf("Nonce found: %d\n", i);
             break;
         }
-    }*/
-    
-    // Multiprocessing
-    /*
-    int num_processes=5;
-    BitcoinHeader blocks[num_processes]; // is this not kosher?
-    pid_t pid;
-    for(int fork_num=0; fork_num<num_processes; fork_num++){
-        get_random_header(&blocks[fork_num], difficulty);
-        pid=fork();
-        if(pid==0){
-            mine_single_block(&blocks[fork_num], &target);
-            exit(0);
-        }
     }
     
-    for(int fork_num=0; fork_num<num_processes; fork_num++){
-        wait(NULL);
-    }
-    */
-    
-    // synchronization, or an attempt of it
-    int num_processes=5;
-    int num_tasks=10; // so that no endless loop is made
-    
-    // prepare shared memory
-    int fd=shm_open("/minejobs", O_CREAT|O_RDWR, 0666);
-    ftruncate(fd, sizeof(SharedData1));
-    SharedData1* sd=mmap(NULL, sizeof(SharedData1), PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
-    sd->result_found=0;
-    sd->no_more_jobs=0;
-    sd->target=&target;
-    
-    //get_random_header(&(sd->block), &target);
-    
-    // prepare semaphores
-    sem_t* issue_job_sync_sem=sem_open("/issuejob",O_CREAT|O_RDWR, 0666, 0);
-    sem_t* job_end_sync_sem=sem_open("/jobend",O_CREAT|O_RDWR, 0666, 0);
-    sem_t* result_found_mutex=sem_open("/resultfound",O_CREAT|O_RDWR, 0666, 1);
-    
-    
-    pid_t pid;
-    for(int fork_num=0; fork_num<num_processes; fork_num++){
-        pid=fork();
-        if(pid==0){
-            process_miner(fork_num, sd);
-            exit(0);
-        }
-    }
-    
-    for(int task_num=0; task_num<num_tasks; task_num++){
-        // prepare task
-        get_random_header(&(sd->block), difficulty);
-        sd->result_found=0;
-        
-        // release children
-        for(int fork_num=0; fork_num<num_processes; fork_num++){
-            sem_post(issue_job_sync_sem);
-        }
-        
-        // wait for children to finish
-        for(int fork_num=0; fork_num<num_processes; fork_num++){
-            // could have merged with previous loop but, eh, it's clearer
-            // this way
-            sem_wait(job_end_sync_sem);
-        }
-        
-        // we should now have a result we could print
-        printf("PARENT: A result was found with nonce=%d\n",sd->block.nonce);
-    }
-    
-    sd->no_more_jobs=1;
-    for(int fork_num=0; fork_num<num_processes; fork_num++){
-        sem_post(issue_job_sync_sem);
-    }
-    
-    for(int fork_num=0; fork_num<num_processes; fork_num++){
-        wait(NULL);
-    }
+    free(node1);
+    free(node2);
+    free(node3);
+    free(node12);
+    free(node34);
+    free(node1234);
     
     return 0;
     
