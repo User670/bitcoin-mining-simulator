@@ -1,3 +1,5 @@
+**due to moving some functions to \*_utils.c files, these steps are now outdated. Will re-do them when I have time.**
+
 In each sub-folder of this folder, there are these sub-sub-folders:
 
 - `complete` - these contain source code directly copied from my working directory at various points in time. They contain all the comments I made, and potentially leftover debug code, or code from previous parts.
