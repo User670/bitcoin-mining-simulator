@@ -23,8 +23,23 @@ void get_random_hash(unsigned char* digest){
 // @return
 //  void
 void get_random_header(BitcoinHeader* block, int difficulty){
-    block->version=2;
+    block->version=4;
     get_random_hash(&(block->previous_block_hash));
+    get_random_hash(&(block->merkle_root));
+    block->timestamp=time(NULL);
+    block->difficulty=difficulty;
+    block->nonce=0;
+}
+
+// gives a random bitcoin header.
+// @params
+//  *block: pointer to a header
+//  difficulty: the difficulty to be written to the header
+// @return
+//  void
+void get_random_continuation_header(BitcoinHeader* block, char* prev_blk_hash, int difficulty){
+    block->version=4;
+    memcpy(&(block->previous_block_hash), prev_blk_hash, 32);
     get_random_hash(&(block->merkle_root));
     block->timestamp=time(NULL);
     block->difficulty=difficulty;

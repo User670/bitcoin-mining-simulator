@@ -1,0 +1,1 @@
+Convert a difficulty "bits" to approximately 1 in how many chance to guess the hash, and vice versa.

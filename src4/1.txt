@@ -1,0 +1,830 @@
+CHILD 3: spawned
+THREAD 3-0: Thread spawned
+id 0, range 0-429496728
+THREAD 3-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 3-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 3-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 3-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 3-1: Found valid nonce 429498409
+THREAD 3-2: someone found result, breaking
+THREAD 3-3: someone found result, breaking
+THREAD 3-0: someone found result, breaking
+THREAD 3-4: someone found result, breaking
+CHILD 3: Some other process has a result.
+THREAD 3-0: Thread spawned
+id 0, range 0-429496728
+THREAD 3-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 3-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 3-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 3-1: Found valid nonce 429496985
+THREAD 3-2: someone found result, breaking
+THREAD 3-0: someone found result, breaking
+THREAD 3-3: someone found result, breaking
+THREAD 3-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 3-4: someone found result, breaking
+CHILD 3: Some other process has a result.
+THREAD 3-0: Thread spawned
+id 0, range 0-429496728
+THREAD 3-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 3-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 3-0: Found valid nonce 56
+THREAD 3-4: someone found result, breaking
+THREAD 3-1: someone found result, breaking
+THREAD 3-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 3-2: someone found result, breaking
+THREAD 3-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 3-3: someone found result, breaking
+CHILD 3: Some other process has a result.
+THREAD 3-0: Thread spawned
+id 0, range 0-429496728
+THREAD 3-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 3-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 3-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 3-1: Found valid nonce 429497893
+THREAD 3-0: someone found result, breaking
+THREAD 3-3: someone found result, breaking
+THREAD 3-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 3-4: someone found result, breaking
+THREAD 3-2: someone found result, breaking
+CHILD 3: found a valid nonce 429497893
+THREAD 3-0: Thread spawned
+id 0, range 0-429496728
+THREAD 3-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 3-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 3-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 3-1: Found valid nonce 429497030
+THREAD 3-4: someone found result, breaking
+THREAD 3-0: someone found result, breaking
+THREAD 3-2: someone found result, breaking
+THREAD 3-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 3-3: someone found result, breaking
+CHILD 3: found a valid nonce 429497030
+THREAD 3-0: Thread spawned
+id 0, range 0-429496728
+THREAD 3-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 3-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 3-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 3-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 3-4: Found valid nonce 1717989183
+THREAD 3-1: someone found result, breaking
+THREAD 3-2: someone found result, breaking
+THREAD 3-0: someone found result, breaking
+THREAD 3-3: someone found result, breaking
+CHILD 3: Some other process has a result.
+THREAD 3-0: Thread spawned
+id 0, range 0-429496728
+THREAD 3-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 3-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 3-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 3-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 3-1: Found valid nonce 429515319
+THREAD 3-4: someone found result, breaking
+THREAD 3-2: someone found result, breaking
+THREAD 3-0: someone found result, breaking
+THREAD 3-3: someone found result, breaking
+CHILD 3: found a valid nonce 429515319
+THREAD 3-0: Thread spawned
+id 0, range 0-429496728
+THREAD 3-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 3-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 3-4: Thread spawned
+THREAD 3-2: Thread spawned
+id 4, range 1717986916-2147483647
+id 2, range 8CHILD 0: spawned
+THREAD 0-0: Thread spawned
+id 0, range 0-429496728
+THREAD 0-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 0-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 0-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 0-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 0-1: Found valid nonce 429498409
+THREAD 0-4: someone found result, breaking
+THREAD 0-3: someone found result, breaking
+THREAD 0-0: someone found result, breaking
+THREAD 0-2: someone found result, breaking
+CHILD 0: found a valid nonce 429498409
+THREAD 0-0: Thread spawned
+id 0, range 0-429496728
+THREAD 0-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 0-1: Found valid nonce 429496985
+THREAD 0-0: someone found result, breaking
+THREAD 0-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 0-2: someone found result, breaking
+THREAD 0-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 0-3: someone found result, breaking
+THREAD 0-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 0-4: someone found result, breaking
+CHILD 0: found a valid nonce 429496985
+THREAD 0-0: Thread spawned
+id 0, range 0-429496728
+THREAD 0-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 0-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 0-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 0-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 0-0: Found valid nonce 56
+THREAD 0-2: someone found result, breaking
+THREAD 0-1: someone found result, breaking
+THREAD 0-3: someone found result, breaking
+THREAD 0-4: someone found result, breaking
+CHILD 0: Some other process has a result.
+THREAD 0-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 0-0: Thread spawned
+id 0, range 0-429496728
+THREAD 0-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 0-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 0-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 0-4: someone found result, breaking
+THREAD 0-2: someone found result, breaking
+THREAD 0-0: someone found result, breaking
+THREAD 0-3: someone found result, breaking
+THREAD 0-1: someone found result, breaking
+CHILD 0: Some other process has a result.
+THREAD 0-0: Thread spawned
+id 0, range 0-429496728
+THREAD 0-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 0-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 0-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 0-1: Found valid nonce 429497030
+THREAD 0-2: someone found result, breaking
+THREAD 0-0: someone found result, breaking
+THREAD 0-4: someone found result, breaking
+THREAD 0-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 0-3: someone found result, breaking
+CHILD 0: Some other process has a result.
+THREAD 0-0: Thread spawned
+id 0, range 0-429496728
+THREAD 0-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 0-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 0-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 0-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 0-4: Found valid nonce 1717989183
+THREAD 0-1: someone found result, breaking
+THREAD 0-2: someone found result, breaking
+THREAD 0-0: someone found result, breaking
+THREAD 0-3: someone found result, breaking
+CHILD 0: found a valid nonce 1717989183
+THREAD 0-0: Thread spawned
+id 0, range 0-429496728
+THREAD 0-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 0-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 0-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 0-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 0-1: Found valid nonce 429515319
+THREAD 0-0: someone found result, breaking
+THREAD 0-2: someone found result, breaking
+THREAD 0-4: someone found result, breaking
+THREAD 0-3: someone found result, breaking
+CHILD 0: Some other process has a result.
+THREAD 0-0: Thread spawned
+id 0, range 0-429496728
+THREAD 0-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 0-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 0-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 0-4: Thread spawned
+id 4, rangCHILD 2: spawned
+THREAD 2-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 2-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 2-0: Thread spawned
+id 0, range 0-429496728
+THREAD 2-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 2-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 2-1: Found valid nonce 429498409
+THREAD 2-2: someone found result, breaking
+THREAD 2-3: someone found result, breaking
+THREAD 2-4: someone found result, breaking
+THREAD 2-0: someone found result, breaking
+CHILD 2: Some other process has a result.
+THREAD 2-0: Thread spawned
+id 0, range 0-429496728
+THREAD 2-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 2-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 2-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 2-1: Found valid nonce 429496985
+THREAD 2-3: someone found result, breaking
+THREAD 2-2: someone found result, breaking
+THREAD 2-0: someone found result, breaking
+THREAD 2-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 2-4: someone found result, breaking
+CHILD 2: Some other process has a result.
+THREAD 2-0: Thread spawned
+id 0, range 0-429496728
+THREAD 2-0: Found valid nonce 56
+THREAD 2-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 2-1: someone found result, breaking
+THREAD 2-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 2-4: someone found result, breaking
+THREAD 2-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 2-2: someone found result, breaking
+THREAD 2-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 2-3: someone found result, breaking
+CHILD 2: Some other process has a result.
+THREAD 2-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 2-0: Thread spawned
+id 0, range 0-429496728
+THREAD 2-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 2-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 2-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 2-2: someone found result, breaking
+THREAD 2-0: someone found result, breaking
+THREAD 2-3: someone found result, breaking
+THREAD 2-1: someone found result, breaking
+THREAD 2-4: someone found result, breaking
+CHILD 2: Some other process has a result.
+THREAD 2-0: Thread spawned
+id 0, range 0-429496728
+THREAD 2-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 2-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 2-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 2-1: Found valid nonce 429497030
+THREAD 2-2: someone found result, breaking
+THREAD 2-0: someone found result, breaking
+THREAD 2-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 2-3: someone found result, breaking
+THREAD 2-4: someone found result, breaking
+CHILD 2: Some other process has a result.
+THREAD 2-0: Thread spawned
+id 0, range 0-429496728
+THREAD 2-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 2-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 2-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 2-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 2-2: someone found result, breaking
+THREAD 2-3: someone found result, breaking
+THREAD 2-0: someone found result, breaking
+THREAD 2-1: someone found result, breaking
+THREAD 2-4: someone found result, breaking
+CHILD 2: Some other process has a result.
+THREAD 2-0: Thread spawned
+id 0, range 0-429496728
+THREAD 2-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 2-4: Thread spawned
+THREAD 2-1: Thread spawned
+id 4, range 1717986916-2147483647
+id 1, range 429496729-858993457
+THREAD 2-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 2-4: someone found result, breaking
+THREAD 2-1: someone found result, breaking
+THREAD 2-2: someone found result, breaking
+THREAD 2-0: someone found result, breaking
+THREAD 2-3: someone found result, breaking
+CHILD 2: Some other process has a result.
+THREAD 2-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 2-0: Thread spawned
+id 0, range 0-429496728
+THREAD 2-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 2-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 2-4: Thread spawnCHILD 1: spawned
+THREAD 1-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 1-0: Thread spawned
+id 0, range 0-429496728
+THREAD 1-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 1-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 1-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 1-1: Found valid nonce 429498409
+THREAD 1-3: someone found result, breaking
+THREAD 1-4: someone found result, breaking
+THREAD 1-2: someone found result, breaking
+THREAD 1-0: someone found result, breaking
+CHILD 1: Some other process has a result.
+THREAD 1-0: Thread spawned
+id 0, range 0-429496728
+THREAD 1-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 1-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 1-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 1-1: Found valid nonce 429496985
+THREAD 1-3: someone found result, breaking
+THREAD 1-2: someone found result, breaking
+THREAD 1-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 1-4: someone found result, breaking
+THREAD 1-0: someone found result, breaking
+CHILD 1: Some other process has a result.
+THREAD 1-0: Thread spawned
+id 0, range 0-429496728
+THREAD 1-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 1-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 1-0: Found valid nonce 56
+THREAD 1-2: someone found result, breaking
+THREAD 1-1: someone found result, breaking
+THREAD 1-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 1-4: someone found result, breaking
+THREAD 1-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 1-3: someone found result, breaking
+CHILD 1: found a valid nonce 56
+THREAD 1-0: Thread spawned
+id 0, range 0-429496728
+THREAD 1-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 1-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 1-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 1-1: Found valid nonce 429497893
+THREAD 1-2: someone found result, breaking
+THREAD 1-3: someone found result, breaking
+THREAD 1-0: someone found result, breaking
+THREAD 1-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 1-4: someone found result, breaking
+CHILD 1: Some other process has a result.
+THREAD 1-0: Thread spawned
+id 0, range 0-429496728
+THREAD 1-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 1-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 1-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 1-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 1-4: someone found result, breaking
+THREAD 1-1: someone found result, breaking
+THREAD 1-3: someone found result, breaking
+THREAD 1-2: someone found result, breaking
+THREAD 1-0: someone found result, breaking
+CHILD 1: Some other process has a result.
+THREAD 1-0: Thread spawned
+id 0, range 0-429496728
+THREAD 1-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 1-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 1-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 1-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 1-4: Found valid nonce 1717989183
+THREAD 1-1: someone found result, breaking
+THREAD 1-2: someone found result, breaking
+THREAD 1-0: someone found result, breaking
+THREAD 1-3: someone found result, breaking
+CHILD 1: Some other process has a result.
+THREAD 1-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 1-0: Thread spawned
+id 0, range 0-429496728
+THREAD 1-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 1-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 1-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 1-1: Found valid nonce 429515319
+THREAD 1-3: someone found result, breaking
+THREAD 1-2: someone found result, breaking
+THREAD 1-4: someone found result, breaking
+THREAD 1-0: someone found result, breaking
+CHILD 1: Some other process has a result.
+THREAD 1-0: Thread spawned
+id 0, range 0-429496728
+THREAD 1-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 1-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 1-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 1-2: Thread spawned
+id 2, rangeCHILD 4: spawned
+THREAD 4-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 4-0: Thread spawned
+id 0, range 0-429496728
+THREAD 4-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 4-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 4-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 4-2: someone found result, breaking
+THREAD 4-1: someone found result, breaking
+THREAD 4-4: someone found result, breaking
+THREAD 4-0: someone found result, breaking
+THREAD 4-3: someone found result, breaking
+CHILD 4: Some other process has a result.
+THREAD 4-0: Thread spawned
+id 0, range 0-429496728
+THREAD 4-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 4-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 4-1: Found valid nonce 429496985
+THREAD 4-0: someone found result, breaking
+THREAD 4-3: someone found result, breaking
+THREAD 4-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 4-2: someone found result, breaking
+THREAD 4-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 4-4: someone found result, breaking
+CHILD 4: I found a nonce, but someone beat me to it in writing it to the shared memory.
+THREAD 4-0: Thread spawned
+id 0, range 0-429496728
+THREAD 4-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 4-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 4-0: Found valid nonce 56
+THREAD 4-1: someone found result, breaking
+THREAD 4-4: someone found result, breaking
+THREAD 4-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 4-2: someone found result, breaking
+THREAD 4-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 4-3: someone found result, breaking
+CHILD 4: Some other process has a result.
+THREAD 4-0: Thread spawned
+id 0, range 0-429496728
+THREAD 4-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 4-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 4-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 4-1: Found valid nonce 429497893
+THREAD 4-3: someone found result, breaking
+THREAD 4-0: someone found result, breaking
+THREAD 4-2: someone found result, breaking
+THREAD 4-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 4-4: someone found result, breaking
+CHILD 4: Some other process has a result.
+THREAD 4-0: Thread spawned
+id 0, range 0-429496728
+THREAD 4-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 4-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 4-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 4-1: Found valid nonce 429497030
+THREAD 4-4: someone found result, breaking
+THREAD 4-0: someone found result, breaking
+THREAD 4-2: someone found result, breaking
+THREAD 4-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 4-3: someone found result, breaking
+CHILD 4: Some other process has a result.
+THREAD 4-0: Thread spawned
+id 0, range 0-429496728
+THREAD 4-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 4-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 4-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 4-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 4-3: someone found result, breaking
+THREAD 4-2: someone found result, breaking
+THREAD 4-0: someone found result, breaking
+THREAD 4-4: someone found result, breaking
+THREAD 4-1: someone found result, breaking
+CHILD 4: Some other process has a result.
+THREAD 4-0: Thread spawned
+id 0, range 0-429496728
+THREAD 4-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 4-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 4-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 4-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 4-1: Found valid nonce 429515319
+THREAD 4-0: someone found result, breaking
+THREAD 4-4: someone found result, breaking
+THREAD 4-2: someone found result, breaking
+THREAD 4-3: someone found result, breaking
+CHILD 4: Some other process has a result.
+THREAD 4-0: Thread spawned
+id 0, range 0-429496728
+THREAD 4-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 4-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 4-1: Thread spawned
+id 1, range  858993458-1288490186
+THREAD 1-1: someone found result, breaking
+THREAD 1-3: someone found result, breaking
+THREAD 1-4: someone found result, breaking
+THREAD 1-2: someone found result, breaking
+THREAD 1-0: someone found result, breaking
+CHILD 1: Some other process has a result.
+THREAD 1-0: Thread spawned
+id 0, range 0-429496728
+THREAD 1-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 1-0: Found valid nonce 2162
+THREAD 1-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 1-2: someone found result, breaking
+THREAD 1-1: someone found result, breaking
+THREAD 1-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 1-4: someone found result, breaking
+THREAD 1-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 1-3: someone found result, breaking
+CHILD 1: found a valid nonce 2162
+THREAD 1-0: Thread spawned
+id 0, range 0-429496728
+THREAD 1-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 1-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 1-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 1-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 1-2: Found valid nonce 858995905
+THREAD 1-0: someone found result, breaking
+THREAD 1-4: someone found result, breaking
+THREAD 1-1: someone found result, breaking
+THREAD 1-3: someone found result, breaking
+CHILD 1: I found a nonce, but someone beat me to it in writing it to the shared memory.
+CHILD 1: No more job flag raised, breaking out of main loop
+e 1717986916-2147483647
+THREAD 0-2: Found valid nonce 858999556
+THREAD 0-4: someone found result, breaking
+THREAD 0-3: someone found result, breaking
+THREAD 0-0: someone found result, breaking
+THREAD 0-1: someone found result, breaking
+CHILD 0: found a valid nonce 858999556
+THREAD 0-0: Thread spawned
+id 0, range 0-429496728
+THREAD 0-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 0-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 0-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 0-0: Found valid nonce 2162
+THREAD 0-1: someone found result, breaking
+THREAD 0-4: someone found result, breaking
+THREAD 0-2: someone found result, breaking
+THREAD 0-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 0-3: someone found result, breaking
+CHILD 0: Some other process has a result.
+THREAD 0-0: Thread spawned
+id 0, range 0-429496728
+THREAD 0-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 0-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 0-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 0-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 0-2: Found valid nonce 858995905
+THREAD 0-0: someone found result, breaking
+THREAD 0-4: someone found result, breaking
+THREAD 0-1: someone found result, breaking
+THREAD 0-3: someone found result, breaking
+CHILD 0: Some other process has a result.
+CHILD 0: No more job flag raised, breaking out of main loop
+429496729-858993457
+THREAD 4-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 4-0: someone found result, breaking
+THREAD 4-4: someone found result, breaking
+THREAD 4-3: someone found result, breaking
+THREAD 4-2: someone found result, breaking
+THREAD 4-1: someone found result, breaking
+CHILD 4: Some other process has a result.
+THREAD 4-0: Thread spawned
+id 0, range 0-429496728
+THREAD 4-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 4-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 4-0: Found valid nonce 2162
+THREAD 4-1: someone found result, breaking
+THREAD 4-4: someone found result, breaking
+THREAD 4-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 4-2: someone found result, breaking
+THREAD 4-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 4-3: someone found result, breaking
+CHILD 4: Some other process has a result.
+THREAD 4-0: Thread spawned
+id 0, range 0-429496728
+THREAD 4-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 4-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 4-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 4-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 4-2: Found valid nonce 858995905
+THREAD 4-4: someone found result, breaking
+THREAD 4-3: someone found result, breaking
+THREAD 4-1: someone found result, breaking
+THREAD 4-0: someone found result, breaking
+CHILD 4: found a valid nonce 858995905
+CHILD 4: No more job flag raised, breaking out of main loop
+ed
+id 4, range 1717986916-2147483647
+THREAD 2-2: Found valid nonce 858999556
+THREAD 2-0: someone found result, breaking
+THREAD 2-1: someone found result, breaking
+THREAD 2-3: someone found result, breaking
+THREAD 2-4: someone found result, breaking
+CHILD 2: Some other process has a result.
+THREAD 2-0: Thread spawned
+id 0, range 0-429496728
+THREAD 2-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 2-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 2-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 2-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 2-0: Found valid nonce 2162
+THREAD 2-2: someone found result, breaking
+THREAD 2-4: someone found result, breaking
+THREAD 2-1: someone found result, breaking
+THREAD 2-3: someone found result, breaking
+CHILD 2: Some other process has a result.
+THREAD 2-0: Thread spawned
+id 0, range 0-429496728
+THREAD 2-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 2-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 2-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 2-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 2-2: Found valid nonce 858995905
+THREAD 2-4: someone found result, breaking
+THREAD 2-3: someone found result, breaking
+THREAD 2-1: someone found result, breaking
+THREAD 2-0: someone found result, breaking
+CHILD 2: Some other process has a result.
+CHILD 2: No more job flag raised, breaking out of main loop
+58993458-1288490186
+THREAD 3-2: Found valid nonce 858999556
+THREAD 3-4: someone found result, breaking
+THREAD 3-3: someone found result, breaking
+THREAD 3-0: someone found result, breaking
+THREAD 3-1: someone found result, breaking
+CHILD 3: Some other process has a result.
+THREAD 3-0: Thread spawned
+id 0, range 0-429496728
+THREAD 3-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 3-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 3-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 3-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 3-0: Found valid nonce 2162
+THREAD 3-1: someone found result, breaking
+THREAD 3-2: someone found result, breaking
+THREAD 3-3: someone found result, breaking
+THREAD 3-4: someone found result, breaking
+CHILD 3: Some other process has a result.
+THREAD 3-0: Thread spawned
+id 0, range 0-429496728
+THREAD 3-3: Thread spawned
+id 3, range 1288490187-1717986915
+THREAD 3-1: Thread spawned
+id 1, range 429496729-858993457
+THREAD 3-2: Thread spawned
+id 2, range 858993458-1288490186
+THREAD 3-4: Thread spawned
+id 4, range 1717986916-2147483647
+THREAD 3-1: someone found result, breaking
+THREAD 3-2: someone found result, breaking
+THREAD 3-0: someone found result, breaking
+THREAD 3-3: someone found result, breaking
+THREAD 3-4: someone found result, breaking
+CHILD 3: Some other process has a result.
+CHILD 3: No more job flag raised, breaking out of main loop
+PARENT: A result was found with nonce=429498409
+(it's good)
+PARENT: A result was found with nonce=429496985
+(it's good)
+PARENT: A result was found with nonce=56
+(it's good)
+PARENT: A result was found with nonce=429497893
+(it's good)
+PARENT: A result was found with nonce=429497030
+(it's good)
+PARENT: A result was found with nonce=1717989183
+(it's good)
+PARENT: A result was found with nonce=429515319
+(it's good)
+PARENT: A result was found with nonce=858999556
+(it's good)
+PARENT: A result was found with nonce=2162
+(it's good)
+PARENT: A result was found with nonce=858995905
+(it's good)
