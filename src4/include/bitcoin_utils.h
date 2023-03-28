@@ -1,4 +1,5 @@
-#pragma once
+#ifndef BITCOIN_UTILS_H
+#define BITCOIN_UTILS_H
 typedef struct BitcoinHeader{
     int version;
     char previous_block_hash[32];
@@ -62,3 +63,5 @@ void calculate_merkle_root_top_down(MerkleTreeHashNode* node);
 void update_merkle_root_v2(BitcoinBlockv2* block);
 
 void calculate_merkle_root_v2(MerkleTreeDataNode* data, int count, char* target);
+
+#endif
