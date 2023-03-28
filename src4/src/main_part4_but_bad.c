@@ -81,12 +81,52 @@ pthread_mutex_t ptm_flag_lock;*/
 // just for printing purposes...
 int ptm_process_id;
 
+// for files...
+BitcoinHeader ptm_header;
+char* ptm_blockchain_fname;
+char* ptm_target;
 
+int* ptm_rwlock_counter;
+sem_t* ptm_rwlock_resource;
+sem_t* ptm_rwlock_rmutex;
 
 typedef struct{
-    int file_lock_counter;
+    int rwlock_counter;
     char* target;
+    char* blockchain_file_name;
+    char* transactions_file_name;
+    int difficulty;
 }SharedData2;
+
+// implementing a simple reader-writer lock
+// this *does* favor readers, and *can* starve writers
+
+void ptm_rwlock_read_begin(){
+    sem_wait(ptm_rwlock_rmutex);
+    *ptm_rwlock_counter++;
+    if(*ptm_rwlock_counter==1){
+        sem_wait(ptm_rwlock_resource);
+    }
+    sem_post(ptm_rwlock_rmutex);
+}
+
+void ptm_rwlock_read_end(){
+    sem_wait(ptm_rwlock_rmutex);
+    *ptm_rwlock_counter--;
+    if(*ptm_rwlock_counter==0){
+        sem_post(ptm_rwlock_resource);
+    }
+    sem_post(ptm_rwlock_rmutex);
+}
+
+void ptm_rwlock_write_begin(){
+    sem_wait(ptm_rwlock_resource);
+}
+
+void ptm_rwlock_write_end(){
+    sem_post(ptm_rwlock_resource);
+}
+
 
 
 // What do I need here...? (for files)
@@ -146,34 +186,66 @@ void *thread_miner(void *_id){
 void process_thread_miner(int id, SharedData1* sd){
     printf("CHILD %d: spawned\n",id);
     // prepare semaphore references
-    sem_t* issue_job_sync_sem=sem_open("/issuejob", O_RDWR);
-    sem_t* job_end_sync_sem=sem_open("/jobend", O_RDWR);
-    sem_t* result_found_mutex=sem_open("/resultfound", O_RDWR);
+    sem_t* rwlock_resource=sem_open("/rwlock_resource",O_RDWR, 0666);
+    sem_t* rwlock_rmutex=sem_open("/rwlock_rmutex",O_RDWR, 0666);
+    
+    ptm_rwlock_resource=rwlock_resource;
+    ptm_rwlock_rmutex=rwlock_rmutex;
+    ptm_rwlock_counter=&sd->rwlock_counter;
+    
+    // aliases for variables to access
+    char* bfn=sd->blockchain_file_name;
+    char* tfn=sd->transactions_file_name;
+    
+    ptm_blockchain_fname=bfn;
     
     // prepare vars
     //BitcoinHeader working_block;
-    ptm_process_id=id;
+    //ptm_process_id=id;
     
     // setup global signal ptr
-    ptm_some_process_has_result=&(sd->result_found);
+    //ptm_some_process_has_result=&(sd->result_found);
     
     // setup mutex
-    pthread_mutex_init(&ptm_flag_lock, NULL);
+    //pthread_mutex_init(&ptm_flag_lock, NULL);
     
+    int working_on_block_height;
+    int block_height;
+    int fd;
     // main loop
     while(1){
-        // wait for parent to issue job and release lock
-        //printf("CHILD %d: I'm waiting for parent to release issuejob\n",id);
-        sem_wait(issue_job_sync_sem);
-        //printf("CHILD %d: I'm released from issuejob\n",id);
-        // check `sd` for no-more-jobs signal
-        if(sd->no_more_jobs){
-            printf("CHILD %d: No more job flag raised, breaking out of main loop\n", id);
+        ptm_rwlock_read_begin();
+        fd=open(bfn, O_RDWR, 0666);
+        block_height=obtain_block_count(fd);
+        close(fd);
+        ptm_rwlock_read_end();
+        
+        if(block_height==MAX_BLOCKCHAIN_HEIGHT){
+            printf("CHILD %d: Max chain height reached, breaking out of main loop\n", id);
             break;
         }
         
         // setup job-specific var and reset flags
-        ptm_header=sd->block;
+        BitcoinBlockv2 block;
+        ptm_rwlock_read_begin();
+        
+        fd=open(tfn, O_RDWR, 0666);
+        load_transactions(fd, &block);
+        close(fd);
+        
+        fd=open(bfn, O_RDWR, 0666);
+        working_on_block_height=obtain_block_count(fd);
+        lseek(fd, 0, SEEK_SET);
+        obtain_last_block_hash(fd, &(block.header.previous_block_hash));
+        close(fd);
+        
+        ptm_rwlock_read_end();
+        
+        update_merkle_root_v2(&block);
+        block.header.version=4;
+        block.header.difficulty=sd->difficulty;
+        block.header.timestamp=time(NULL);
+        
         ptm_target=sd->target;
         ptm_this_process_has_result=0;
         
@@ -239,9 +311,6 @@ int main(){
     char target[32];
     construct_target(difficulty, &target);
     
-    BitcoinHeader block;
-    get_random_header(&block, difficulty);
-    mine_single_block(&block, &target);
     /*
     // synchronization, or an attempt of it
     int num_tasks=10; // so that no endless loop is made
@@ -304,6 +373,75 @@ int main(){
     return 0;
     */
     
+    int fd=shm_open("/minejobs", O_CREAT|O_RDWR, 0666);
+    ftruncate(fd, sizeof(SharedData2));
+    SharedData2* sd=mmap(NULL, sizeof(SharedData2), PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+    
+    sd->rwlock_counter=0;
+    sd->target=&target;
+    sd->difficulty=difficulty;
+    sd->blockchain_file_name="blockchain.bin";
+    sd->transactions_file_name="transactions.bin";
+    
+    // check file existence
+    int fd_b=open("blockchain.bin", O_CREAT|O_EXCL|O_RDWR|O_TRUNC, 0666);
+    int zero=0;
+    if(fd_b==-1){
+        if(errno=EEXIST){
+            printf("blockchain.bin already exists. Wiping and re-initializing\n")
+            fd_b=open("blockchain.bin", O_CREAT|O_RDWR|O_TRUNC, 0666);
+            write(fd_b, &zero, sizeof(int));
+            close(fd_b);
+        }else{
+            perror("Error when trying to open blockchain.bin");
+            exit(1);
+        }
+    }else{
+        printf("blockchain.bin doesn't exist. Creating and initializing\n");
+        write(fd_b, &zero, sizeof(int));
+        close(fd_b);
+    }
+    
+    int fd_t=open("transactions.bin", O_CREAT|O_EXCL|O_RDWR|O_TRUNC, 0666);
+    int zero=0;
+    if(fd_t==-1){
+        if(errno=EEXIST){
+            printf("transactions.bin already exists.\n");
+            fd_t=open("transactions.bin", O_CREAT|O_RDWR|O_TRUNC, 0666);
+        }else{
+            perror("Error when trying to open transactions.bin");
+            exit(1);
+        }
+    }else{
+        printf("transactions.bin doesn't exist. Creating\n");
+    }
+    
+    // initialize the first batch of transactions
+    BitcoinBlockv2 block;
+    get_random_block_transactions(*block);
+    dump_transactions(fd_t, block);
+    close(fd_t);
+    
+    
+        
+    // prepare semaphores
+    sem_t* rwlock_resource=sem_open("/rwlock_resource",O_CREAT|O_RDWR, 0666, 1);
+    sem_t* rwlock_rmutex=sem_open("/rwlock_rmutex",O_CREAT|O_RDWR, 0666, 1);
+    
+    
+    
+    pid_t pid;
+    for(int fork_num=0; fork_num<NUM_PROCESSES; fork_num++){
+        pid=fork();
+        if(pid==0){
+            process_thread_miner(fork_num, sd);
+            exit(0);
+        }
+    }
+    
+    for(int fork_num=0; fork_num<NUM_PROCESSES; fork_num++){
+        wait(NULL);
+    }
 }
 
 
