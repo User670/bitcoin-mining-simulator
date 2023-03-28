@@ -143,10 +143,63 @@ void load_transactions(int fd, BitcoinBlockv2* block){
     close(fd);
 }
 
-
+// Dump a block v2, including its transactions, to a file.
+// params
+//  fd: a file descriptor
+//  block: the block
+// return
+//  void
 void dump_block(int fd, BitcoinBlockv2 block){
     write(fd, &block.header, sizeof(BitcoinHeader));
     dump_transactions(fd, block);
+}
+
+// Read a blockchain file, and calculate the last block header's hash.
+// Relies on the block count metadata to be correct.
+// Will get slow if chain gets very long, as it seeks through the blocks
+// one by one.
+// params
+//  fd: a file descriptor
+//  *target: place to store the hash
+// return
+//  void
+void obtain_last_block_hash(int fd, char* target){
+    int block_count;
+    int transaction_count;
+    int transaction_length;
+    
+    // read # of blocks
+    read(fd, &block_count, sizeof(int));
+    
+    for(int i=0; i<block_count-1; i++){
+        // skip header
+        lseek(fd, sizeof(BitcoinHeader), SEEK_CUR);
+        // read transaction count
+        read(fd, &transaction_count, sizeof(int));
+        for(int j=0; j<transaction_count; j++){
+            // read transaction length
+            read(fd, &transaction_length, sizeof(int));
+            // skip the transaction
+            lseek(fd, transaction_length, SEEK_CUR)
+        }
+    }
+    
+    BitcoinHeader block;
+    // read the remaining header
+    read(fd, &block, sizeof(BitcoinHeader));
+    // hash the header
+    dsha(&block, sizeof(BitcoinHeader), target);
+}
+
+// Get a blockchain file's block count by reading the metadata.
+// param
+//  fd: a file descriptor
+// return
+//  number of blocks
+int obtain_block_count(int fd){
+    int a;
+    read(fd, &a, sizeof(int));
+    return a;
 }
 
 

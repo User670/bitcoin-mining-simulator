@@ -17,6 +17,7 @@
 
 #define NUM_PROCESSES 5
 #define NUM_THREADS 5
+#define MAX_BLOCKCHAIN_HEIGHT 10
 
 
 // for multiprocessing
@@ -28,14 +29,17 @@
 //  void
 void mine_single_block(BitcoinHeader* block, const char* target){
     int i=0;
-    for(; i<=2147483647; i++){
+    int start=time(NULL);
+    for(; i<21474836; i++){
         block->nonce=i;
         if(is_good_block(block, target)){
-            printf("CHILD PROCESS: nonce found %d\n", i);
-            break;
+            //printf("CHILD PROCESS: nonce found %d\n", i);
+            //break;
         }
         
     }
+    int end=time(NULL);
+    printf("Done, and it took %d seconds\n", end-start);
 }
 
 typedef struct{
@@ -45,7 +49,7 @@ typedef struct{
     int no_more_jobs;
 }SharedData1;
 
-// what do I need here?
+// what do I need here? (for threads)
 /*
 - the block itself
   - need to copy it so that it doesn't mess up with other threads
@@ -69,21 +73,51 @@ typedef struct{
 */
 
 // global vars used by process thread miner get ptm_ prefix
-BitcoinHeader ptm_header;
+/*BitcoinHeader ptm_header;
 char* ptm_target;
 int ptm_this_process_has_result;
 int* ptm_some_process_has_result;
-pthread_mutex_t ptm_flag_lock;
+pthread_mutex_t ptm_flag_lock;*/
 // just for printing purposes...
 int ptm_process_id;
+
+
+
+typedef struct{
+    int file_lock_counter;
+    char* target;
+}SharedData2;
+
+
+// What do I need here...? (for files)
+/*
+Threads need...
+- A counter from the shared memory, and two semaphores, to implement
+  file lock
+- A string, block file path
+- still a header
+
+The main thread of the child process needs...
+- two strings, path to the two files
+- the same counter and semaphores
+- a max height macro
+*/
+// What to do with sync...?
+/*
+- threads read block count from file
+- When it reads a new block, suicide
+- When it mines a block, use ptm_ variable to signal other threads to suicide
+- Process, when all threads suicide, check block count, write if no 
+  block has been pushed by another process
+*/
 
 void *thread_miner(void *_id){
     BitcoinHeader block=ptm_header;
     int id=*(int*)_id;
     printf("THREAD %d-%d: Thread spawned\n", ptm_process_id, id);
     int start=2147483647/NUM_THREADS*id;
-    int end= id==NUM_THREADS-1?2147483647:2147483647/NUM_THREADS*(id+1)-1;
-    for(int i=start; i<=end; i++){
+    int end= id==NUM_THREADS-1?2147483647:2147483647/NUM_THREADS*(id+1);
+    for(int i=start; i<end; i++){
         if(ptm_this_process_has_result || *ptm_some_process_has_result){
             printf("THREAD %d-%d: someone found result, breaking\n", ptm_process_id, id);
             break;
@@ -205,7 +239,10 @@ int main(){
     char target[32];
     construct_target(difficulty, &target);
     
-    
+    BitcoinHeader block;
+    get_random_header(&block, difficulty);
+    mine_single_block(&block, &target);
+    /*
     // synchronization, or an attempt of it
     int num_tasks=10; // so that no endless loop is made
     
@@ -265,6 +302,7 @@ int main(){
     }
     
     return 0;
+    */
     
 }
 

@@ -10,7 +10,7 @@ Transaction data begin with an int (number of transactions), then that many of t
 
 Block data is the header followed by transaction data.
 
-Blockchain data is multiple block data next to each other. Not sure if there is need for "number of blocks" metadata at the beginning.
+Blockchain data is multiple block data next to each other. ~~Not sure if there is need for "number of blocks" metadata at the beginning.~~ An int at the beginning for block count.
 
 Header data is the same as how the C program internally stores it, which should be similar to the real Bitcoin header format (int version, char[32] previous block hash, char[32] merkle root, int timestamp, int difficulty bits, int nonce. 80 bytes total).
 

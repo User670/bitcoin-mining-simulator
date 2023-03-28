@@ -11,6 +11,12 @@ void get_random_block_transactions(BitcoinBlockv2* block);
 
 void get_random_transaction(MerkleTreeDataNode* node);
 
-void dump_transactions(const char* filename, BitcoinBlockv2 block);
+void dump_transactions(int fd, BitcoinBlockv2 block);
 
-void load_transactions(const char* filename, BitcoinBlockv2* block);
+void load_transactions(int fd, BitcoinBlockv2* block);
+
+void dump_block(int fd, BitcoinBlockv2 block);
+
+void obtain_last_block_hash(int fd, char* target);
+
+int obtain_block_count(int fd);
