@@ -40,7 +40,7 @@ void get_random_header(BitcoinHeader* block, int difficulty){
 //  difficulty: the difficulty to be written to the header
 // @return
 //  void
-void get_random_continuation_header(BitcoinHeader* block, char* prev_blk_hash, int difficulty){
+void get_random_continuation_header(BitcoinHeader* block, void* prev_blk_hash, int difficulty){
     block->version=4;
     memcpy(&(block->previous_block_hash), prev_blk_hash, 32);
     get_random_hash(&(block->merkle_root));
@@ -163,10 +163,10 @@ void dump_block(int fd, BitcoinBlockv2 block){
 // one by one.
 // params
 //  fd: a file descriptor
-//  *target: place to store the hash
+//  *digest: place to store the hash
 // return
 //  void
-void obtain_last_block_hash(int fd, char* target){
+void obtain_last_block_hash(int fd, void* digest){
     int block_count;
     int transaction_count;
     int transaction_length;
@@ -191,7 +191,7 @@ void obtain_last_block_hash(int fd, char* target){
     // read the remaining header
     read(fd, &block, sizeof(BitcoinHeader));
     // hash the header
-    dsha(&block, sizeof(BitcoinHeader), target);
+    dsha(&block, sizeof(BitcoinHeader), digest);
 }
 
 // Get a blockchain file's block count by reading the metadata.
@@ -205,8 +205,12 @@ int obtain_block_count(int fd){
     return a;
 }
 
-void obtain_last_block_hash_v3(BitcoinBlockv3* genesis, char* target){
+void obtain_last_block_hash_v3(BitcoinBlockv3* genesis, void* digest){
     BitcoinBlockv3* n=genesis;
+    while(n->next_block!=NULL){
+        n=n->next_block;
+    }
+    dsha(&(n->header), sizeof(BitcoinHeader), digest);
 }
 
 

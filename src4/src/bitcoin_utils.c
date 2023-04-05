@@ -92,6 +92,14 @@ void update_merkle_root(BitcoinBlock* block){
     memcpy(&(block->header.merkle_root),&(block->merkle_tree->hash),32);
 }
 
+void update_merkle_root_v3(BitcoinBlockv3* block){
+    // has to take a pointer
+    // taking the block itself makes C duplicate the value for the
+    // function, and unable to modify it outside
+    calculate_merkle_root_top_down(block->merkle_tree);
+    memcpy(&(block->header.merkle_root),&(block->merkle_tree->hash),32);
+}
+
 // ###### DEPRECATED?
 // (might work with v3)
 // Recursively calculate all hashes in a merkle tree.
@@ -228,6 +236,7 @@ int tree_depth_v3(MerkleTreeHashNode* node){
 }
 
 void initialize_hash_node(MerkleTreeHashNode* node){
+    memset(node->hash, 0, 32);
     node->left=NULL;
     node->right=NULL;
     node->data=NULL;
@@ -301,6 +310,33 @@ void recursive_free_merkle_tree_v3(MerkleTreeHashNode* node){
 void recursive_free_block_v3(BitcoinBlockv3* block){
     recursive_free_merkle_tree_v3(block->merkle_tree);
     free(block);
+}
+
+void initialize_block_v3(BitcoinBlockv3* block, int difficulty){
+    //initialize header
+    block->header.version=4;
+    memset(block->header.previous_block_hash, 0, 32);
+    memset(block->header.merkle_root, 0, 32);
+    block->header.difficulty=difficulty;
+    block->header.timestamp=time(NULL);
+    block->header.nonce=0;
+    
+    //initialize pointers
+    block->previous_block=NULL;
+    block->next_block=NULL;
+    
+    //initialize tree
+    block->merkle_tree=malloc(sizeof(MerkleTreeHashNode));
+    initialize_hash_node(block->merkle_tree);
+}
+
+void attach_block_v3(BitcoinBlockv3* genesis, BitcoinBlockv3* new_block){
+    BitcoinBlockv3* n=genesis;
+    while(n->next_block!=NULL){
+        n=n->next_block;
+    }
+    n->next_block=new_block;
+    new_block->previous_block=n;
 }
 
 
