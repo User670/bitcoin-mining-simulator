@@ -24,4 +24,20 @@ int obtain_block_count(int fd);
 
 void obtain_last_block_hash_v3(BitcoinBlockv3* genesis, void* digest);
 
+int serialize_data_node_v3(MerkleTreeDataNode* node, int max_size, void* buf);
+
+int serialize_merkle_tree_v3(MerkleTreeHashNode* node, int max_size, void* buf);
+
+int serialize_block_v3(BitcoinBlockv3* block, int max_size, void* buf);
+
+int serialize_blockchain_v3(BitcoinBlockv3* genesis, int max_size, void* buf);
+
+int deserialize_data_node_v3(void* serialized_buf, MerkleTreeDataNode* obj);
+
+int deserialize_merkle_tree_v3(void* serialized_buf, MerkleTreeHashNode* obj);
+
+int deserialize_block_v3(void* serialized_buf, BitcoinBlockv3* block);
+
+int deserialize_blockchain_v3(void* serialized_buf, BitcoinBlockv3* genesis);
+
 #endif

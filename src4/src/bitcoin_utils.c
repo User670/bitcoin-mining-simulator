@@ -242,18 +242,17 @@ void initialize_hash_node(MerkleTreeHashNode* node){
     node->data=NULL;
 }
 
-void add_layer_v3(BitcoinBlockv3* block){
-    MerkleTreeHashNode* n=block->merkle_tree;
-    block->merkle_tree=malloc(sizeof(MerkleTreeHashNode));
-    block->merkle_tree->left=n;
+void add_layer_v3(MerkleTreeHashNode* tree){
+    MerkleTreeHashNode* n=tree;
+    tree=malloc(sizeof(MerkleTreeHashNode));
+    tree->left=n;
 }
 
-void add_data_node_v3(BitcoinBlockv3* block, MerkleTreeDataNode* node){
-    int index=count_transactions_v3(block->merkle_tree);
-    MerkleTreeHashNode* n=block->merkle_tree;
+void add_data_node_v3(MerkleTreeHashNode* tree, MerkleTreeDataNode* node){
+    int index=count_transactions_v3(tree);
+    MerkleTreeHashNode* n=tree;
     if(tree_is_full_v3(n)){
-        add_layer_v3(block);
-        n=block->merkle_tree;
+        add_layer_v3(tree);
     }
     // convert `index` to binary (bits saves the digits in reverse)
     // binary digits -> path down the tree (1=R, 0=L)
@@ -291,7 +290,7 @@ void construct_merkle_tree_v3(BitcoinBlockv3* block, int transaction_count, Merk
     // assumes `data` in array
     // ... might need rework if data is loose (**data??)
     for(int i=0; i<transaction_count; i++){
-        add_data_node_v3(block, data+i);
+        add_data_node_v3(block->merkle_tree, data+i);
     }
 }
 

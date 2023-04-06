@@ -80,9 +80,9 @@ int tree_depth_v3(MerkleTreeHashNode* node);
 
 void initialize_hash_node(MerkleTreeHashNode* node);
 
-void add_layer_v3(BitcoinBlockv3* block);
+void add_layer_v3(MerkleTreeHashNode* tree);
 
-void add_data_node_v3(BitcoinBlockv3* block, MerkleTreeDataNode* node);
+void add_data_node_v3(MerkleTreeHashNode* tree, MerkleTreeDataNode* node);
 
 void construct_merkle_tree_v3(BitcoinBlockv3* block, int transaction_count, MerkleTreeDataNode* data);
 
