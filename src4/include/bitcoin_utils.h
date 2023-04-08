@@ -15,19 +15,11 @@ typedef struct BitcoinHeader{
     int nonce;
 } BitcoinHeader;
 
-/*typedef struct MerkleTreeNode{
-    char hash[32];
-    int is_data_node; // use as boolean
-    struct MerkleTreeNode* left;
-    struct MerkleTreeNode* right;
-} MerkleTreeNode;*/
-
 typedef struct MerkleTreeDataNode{
     int length;
     char* data;
 }MerkleTreeDataNode;
 
-// ###### DEPRECATED?
 // `data` not NULL -> this node is a bottom layer node, `hash` holds hash of
 // the data stored in the data node
 // `data` NULL -> this node is not a bottom layer node, `hash` holds merkle
@@ -41,65 +33,47 @@ typedef struct MerkleTreeHashNode{
     struct MerkleTreeDataNode* data;
 } MerkleTreeHashNode;
 
-// ###### DEPRECATED
 typedef struct BitcoinBlock{
     BitcoinHeader header;
+    struct BitcoinBlock* previous_block;
+    struct BitcoinBlock* next_block;
     MerkleTreeHashNode* merkle_tree;
 }BitcoinBlock;
-
-// data points to an ARRAY of data nodes
-typedef struct{
-    BitcoinHeader header;
-    int data_count;
-    MerkleTreeDataNode* data;
-}BitcoinBlockv2;
-
-typedef struct BitcoinBlockv3{
-    BitcoinHeader header;
-    struct BitcoinBlockv3* previous_block;
-    struct BitcoinBlockv3* next_block;
-    MerkleTreeHashNode* merkle_tree;
-}BitcoinBlockv3;
 
 void dsha(void* message, unsigned int len, void* digest);
 
 void construct_target(int d, void* target_storage);
 
-int is_good_block(BitcoinHeader* block, const char* target);
+int is_good_block(BitcoinHeader* header, const char* target);
 
 void merkle_hash(void* a, void* b, void* digest);
 
 void update_merkle_root(BitcoinBlock* block);
-void update_merkle_root_v3(BitcoinBlockv3* block);
 
 void calculate_merkle_root_top_down(MerkleTreeHashNode* node);
 
-void update_merkle_root_v2(BitcoinBlockv2* block);
+int count_transactions_(MerkleTreeHashNode* node);
 
-void calculate_merkle_root_v2(MerkleTreeDataNode* data, int count, char* target);
+int tree_is_full(MerkleTreeHashNode* node);
 
-int count_transactions_v3(MerkleTreeHashNode* node);
-
-int tree_is_full_v3(MerkleTreeHashNode* node);
-
-int tree_depth_v3(MerkleTreeHashNode* node);
+int tree_depth(MerkleTreeHashNode* node);
 
 void initialize_hash_node(MerkleTreeHashNode* node);
 
-void add_layer_v3(MerkleTreeHashNode* tree);
+void add_layer(MerkleTreeHashNode* tree);
 
-void add_data_node_v3(MerkleTreeHashNode* tree, MerkleTreeDataNode* node);
+void add_data_node(MerkleTreeHashNode* tree, MerkleTreeDataNode* node);
 
-void construct_merkle_tree_v3(BitcoinBlockv3* block, int transaction_count, MerkleTreeDataNode* data);
+void construct_merkle_tree(BitcoinBlock* block, int transaction_count, MerkleTreeDataNode* data);
 
 void free_data_node(MerkleTreeDataNode* node);
 
-void recursive_free_merkle_tree_v3(MerkleTreeHashNode* node);
+void recursive_free_merkle_tree(MerkleTreeHashNode* node);
 
-void recursive_free_block_v3(BitcoinBlockv3* block);
+void recursive_free_block(BitcoinBlock* block);
 
-void initialize_block_v3(BitcoinBlockv3* block, int difficulty);
+void initialize_block(BitcoinBlock* block, int difficulty);
 
-void attach_block_v3(BitcoinBlockv3* genesis, BitcoinBlockv3* new_block);
+void attach_block(BitcoinBlock* genesis, BitcoinBlock* new_block);
 
 #endif

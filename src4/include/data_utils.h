@@ -4,40 +4,28 @@
 
 void get_random_hash(void* digest);
 
-void get_random_header(BitcoinHeader* block, int difficulty);
+void get_random_header(BitcoinHeader* header, int difficulty);
 
-void get_random_continuation_header(BitcoinHeader* block, void* prev_blk_hash, int difficulty);
+void get_random_continuation_header(BitcoinHeader* header, void* prev_blk_hash, int difficulty);
 
 void get_random_transaction(MerkleTreeDataNode* node);
 
-void get_random_block_transactions(BitcoinBlockv2* block);
+void obtain_last_block_hash(BitcoinBlock* genesis, void* digest);
 
-void dump_transactions(int fd, BitcoinBlockv2 block);
+int serialize_data_node(MerkleTreeDataNode* node, int max_size, void* buf);
 
-void load_transactions(int fd, BitcoinBlockv2* block);
+int serialize_merkle_tree(MerkleTreeHashNode* node, int max_size, void* buf);
 
-void dump_block(int fd, BitcoinBlockv2 block);
+int serialize_block(BitcoinBlock* block, int max_size, void* buf);
 
-void obtain_last_block_hash(int fd, void* digest);
+int serialize_blockchain(BitcoinBlock* genesis, int max_size, void* buf);
 
-int obtain_block_count(int fd);
+int deserialize_data_node(void* serialized_buf, MerkleTreeDataNode* obj);
 
-void obtain_last_block_hash_v3(BitcoinBlockv3* genesis, void* digest);
+int deserialize_merkle_tree(void* serialized_buf, MerkleTreeHashNode* obj);
 
-int serialize_data_node_v3(MerkleTreeDataNode* node, int max_size, void* buf);
+int deserialize_block(void* serialized_buf, BitcoinBlock* block);
 
-int serialize_merkle_tree_v3(MerkleTreeHashNode* node, int max_size, void* buf);
-
-int serialize_block_v3(BitcoinBlockv3* block, int max_size, void* buf);
-
-int serialize_blockchain_v3(BitcoinBlockv3* genesis, int max_size, void* buf);
-
-int deserialize_data_node_v3(void* serialized_buf, MerkleTreeDataNode* obj);
-
-int deserialize_merkle_tree_v3(void* serialized_buf, MerkleTreeHashNode* obj);
-
-int deserialize_block_v3(void* serialized_buf, BitcoinBlockv3* block);
-
-int deserialize_blockchain_v3(void* serialized_buf, BitcoinBlockv3* genesis);
+int deserialize_blockchain(void* serialized_buf, BitcoinBlock* genesis);
 
 #endif
