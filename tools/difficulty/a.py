@@ -24,7 +24,7 @@ if opcode=="1":
         print("(You are risking overflowing int32!)")
 elif opcode=="2":
     print("Benchmark reference: on my 2021 gaming laptop that costs 7000 yuan, it took a single thread 1.8 seconds to run 1 million hashes.")
-    c=int(input("1 in how many chance to guess a valid hash? > "))
+    c=int(float(input("1 in how many chance to guess a valid hash? > ")))
     t=hash_possibilities//c
     d=target_to_difficulty(t)
     print("Approximate difficulty is", hex(d))
