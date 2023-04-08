@@ -66,6 +66,12 @@ void get_random_transaction(MerkleTreeDataNode* node){
     }
 }
 
+// Calculates the hash of the last block's header.
+// params
+//  *genesis: the first block of a blockchain.
+//  *digest: a 32-byte buffer to store the hash.
+// return
+//  void
 void obtain_last_block_hash(BitcoinBlock* genesis, void* digest){
     BitcoinBlock* n=genesis;
     while(n->next_block!=NULL){
@@ -74,7 +80,19 @@ void obtain_last_block_hash(BitcoinBlock* genesis, void* digest){
     dsha(&(n->header), sizeof(BitcoinHeader), digest);
 }
 
-
+// ######PRIVATE
+// "serialize" a value into a buffer.
+// params
+//  *value: the value to store.
+//  size: the size, in bytes, of the value to store. (use sizeof)
+//  max_size: the max size the buffer can handle, in bytes.
+//  *buf: the buffer.
+// return
+//  On success, return the number of bytes written (=size).
+//  On error, return -1.
+// errors
+//  ENOMEM: The buffer doesn't have enough memory to hold the data, as indicated
+//          by the max_size parameter.
 int _serialize_value(void* value, int size, int max_size, void* buf){
     if(size>max_size){
         errno=ENOMEM;
@@ -84,6 +102,20 @@ int _serialize_value(void* value, int size, int max_size, void* buf){
     return size;
 }
 
+// Serialize a data node into a buffer as binary.
+// A data node is stored as an int (the length of the data) followed by the data.
+// Data serialized this way is not portable across systems, since the width and
+// endianness of values can vary.
+// params
+//  *node: the data node to serialize
+//  max_size: the max size the buffer can handle, in bytes.
+//  *buf: the buffer.
+// return
+//  On success, return the number of bytes written.
+//  On error, return -1.
+// errors
+//  ENOMEM: The buffer doesn't have enough memory to hold the data, as indicated
+//          by the max_size parameter.
 int serialize_data_node(MerkleTreeDataNode* node, int max_size, void* buf){
     int written_bytes=0;
     int l=0;
@@ -98,6 +130,23 @@ int serialize_data_node(MerkleTreeDataNode* node, int max_size, void* buf){
     return written_bytes;
 }
 
+// Serialize a merkle tree into a buffer as binary.
+// A tree is stored as an int (number of data nodes it has) followed by this
+// many data nodes serialized.
+// Data serialized this way is not portable across systems, since the width and
+// endianness of values can vary.
+// Assumes the tree is valid.
+// params
+//  *node: the root to the merkle tree to serialize
+//  max_size: the max size the buffer can handle, in bytes.
+//  *buf: the buffer.
+// return
+//  On success, return the number of bytes written.
+//  On error, return -1.
+// errors
+//  ENOMEM: The buffer doesn't have enough memory to hold the data, as indicated
+//          by the max_size parameter.
+//  EINVAL: The merkle tree seems invalid in some way.
 int serialize_merkle_tree(MerkleTreeHashNode* node, int max_size, void* buf){
     int depth=tree_depth(node);
     int count=count_transactions(node);
@@ -146,6 +195,22 @@ int serialize_merkle_tree(MerkleTreeHashNode* node, int max_size, void* buf){
     return written_bytes;
 }
 
+// Serialize a bitcoin block into a buffer as binary.
+// A block is stored as the header, in its native binary representation, followed
+// by the merkle tree.
+// Data serialized this way is not portable across systems, since the width and
+// endianness of values can vary.
+// params
+//  *block: the block to serialize
+//  max_size: the max size the buffer can handle, in bytes.
+//  *buf: the buffer.
+// return
+//  On success, return the number of bytes written.
+//  On error, return -1.
+// errors
+//  ENOMEM: The buffer doesn't have enough memory to hold the data, as indicated
+//          by the max_size parameter.
+//  EINVAL: The merkle tree seems invalid in some way.
 int serialize_block(BitcoinBlock* block, int max_size, void* buf){
     int written_bytes=0;
     int l=0;
@@ -160,7 +225,22 @@ int serialize_block(BitcoinBlock* block, int max_size, void* buf){
     return written_bytes;
 }
 
-
+// Serialize a blockchain into a buffer as binary.
+// A blockchain is stored as an int (number of blocks in the chain) followed by
+// this many blocks serialized.
+// Data serialized this way is not portable across systems, since the width and
+// endianness of values can vary.
+// params
+//  *genesis: the first block of the blockchain to serialize
+//  max_size: the max size the buffer can handle, in bytes.
+//  *buf: the buffer.
+// return
+//  On success, return the number of bytes written.
+//  On error, return -1.
+// errors
+//  ENOMEM: The buffer doesn't have enough memory to hold the data, as indicated
+//          by the max_size parameter.
+//  EINVAL: A merkle tree in the blockchain seems invalid in some way.
 int serialize_blockchain(BitcoinBlock* genesis, int max_size, void* buf){
     int block_count=1;
     BitcoinBlock* n=genesis;
@@ -189,6 +269,16 @@ int serialize_blockchain(BitcoinBlock* genesis, int max_size, void* buf){
     return written_bytes;
 }
 
+// Deserialize a data node.
+// Will malloc memory for the data in the node.
+// params
+//  *serialized_buf: serialized data
+//  *obj: a data node to store the data in.
+// returns
+//  On success, return number of bytes read.
+//  On error, return -1.
+// errors
+//  EINVAL: The length reads zero or negative.
 int deserialize_data_node(void* serialized_buf, MerkleTreeDataNode* obj){
     // load length
     memcpy(&(obj->length), serialized_buf, sizeof(int));
@@ -203,6 +293,16 @@ int deserialize_data_node(void* serialized_buf, MerkleTreeDataNode* obj){
     return sizeof(int)+obj->length;
 }
 
+// Deserialize a merkle tree, by reading all nodes and reconstructing the tree.
+// Will malloc memory for hash nodes and data nodes.
+// params
+//  *serialized_buf: serialized data
+//  *obj: a hash node to be the root of the tree.
+// returns
+//  On success, return number of bytes read.
+//  On error, return -1.
+// errors
+//  EINVAL: The length of the tree, or a data node, reads zero or negative.
 int deserialize_merkle_tree(void* serialized_buf, MerkleTreeHashNode* obj){
     // load length
     int read_bytes=0;
@@ -230,6 +330,17 @@ int deserialize_merkle_tree(void* serialized_buf, MerkleTreeHashNode* obj){
     return read_bytes;
 }
 
+// Deserialize a bitcoin block.
+// Will malloc memory for the merkle tree's non-root nodes.
+// params
+//  *serialized_buf: serialized data
+//  *block: a block to store the data. The block has to be initialized with
+//          a root hash node.
+// returns
+//  On success, return number of bytes read.
+//  On error, return -1.
+// errors
+//  EINVAL: The length of the tree, or a data node, reads zero or negative.
 int deserialize_block(void* serialized_buf, BitcoinBlock* block){
     int read_bytes=0;
     int l=0;
@@ -243,6 +354,18 @@ int deserialize_block(void* serialized_buf, BitcoinBlock* block){
     return read_bytes;
 }
 
+// Deserialize a bitcoin block.
+// Will malloc memory for the genesis block's tree's non-root nodes, as well as
+// all memory for subsequent blocks.
+// params
+//  *serialized_buf: serialized data
+//  *genesis: a block to store the data. The block has to be initialized with
+//          a root hash node.
+// returns
+//  On success, return number of bytes read.
+//  On error, return -1.
+// errors
+//  EINVAL: The length of the chain, a tree, or a data node, reads zero or negative.
 int deserialize_blockchain(void* serialized_buf, BitcoinBlock* genesis){
     int read_bytes=0;
     int l=0;

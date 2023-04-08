@@ -1,6 +1,7 @@
 #ifndef BITCOIN_UTILS_H
 #define BITCOIN_UTILS_H
 
+#define DIFFICULTY_5M 0x1e035afe
 #define DIFFICULTY_1M 0x1e10c6f7
 #define DIFFICULTY_500K 0x1e218def
 #define DIFFICULTY_100K 0x1f00a7c5

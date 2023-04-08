@@ -15,11 +15,11 @@
 
 // requires `sha2.c`, `sha2.h`
 // computes double SHA - that is, SHA twice - for a given piece of input.
-// @params
+// params
 //  *message: pointer to the data to be hashed
 //  len: how long, in bytes, the input is
 //  *digest: pointer to a 32-byte buffer to store the hash
-// @return
+// return
 //  void
 void dsha(void* message, unsigned int len, void* digest){
     sha256(message, len, digest);
@@ -28,10 +28,10 @@ void dsha(void* message, unsigned int len, void* digest){
 
 // converts a "difficulty" value (a 32-bit integer) to a target hash that can be
 // compared against
-// @params
+// params
 //  d: the difficulty value
 //  *target_storage: pointer to a 32-byte buffer to store the target
-// @return
+// return
 //  void
 void construct_target(int d, void* target_storage){
     // first two hex digits in the difficulty is the exponent
@@ -78,8 +78,11 @@ void merkle_hash(void* a, void* b, void* digest){
     dsha(&s, 64, digest);
 }
 
-
-
+// calculate merkle root and copy it to the header
+// params
+//  *block: pointer to a block
+// return
+//  void
 void update_merkle_root(BitcoinBlock* block){
     // has to take a pointer
     // taking the block itself makes C duplicate the value for the
@@ -130,44 +133,59 @@ TODO for bitcoin and merkle tree structure:
 - recursively free memory used by a blockchain?
 */
 
-/*
-
-*/
-int count_transactions_(MerkleTreeHashNode* node){
-    if(node==NULL)return 0;
-    if(node->data!=NULL){
+// count how many transactions are in a merkle tree
+// assumes tree is valid - specifically, a node with a data node doesn't have
+// children, and a node has a left child before a right child.
+// params
+//  *tree: root of the merkle tree
+// return
+//  number of transactions
+int count_transactions_(MerkleTreeHashNode* tree){
+    if(tree==NULL)return 0;
+    if(tree->data!=NULL){
         return 1;
     }
     int n=0;
-    if(node->left==NULL){
+    if(tree->left==NULL){
         return n;
     }//else...
-    n+=count_transactions(node->left);
-    if(node->right==NULL){
+    n+=count_transactions(tree->left);
+    if(tree->right==NULL){
         return n;
     }//else...
-    n+=count_transactions(node->right);
+    n+=count_transactions(tree->right);
     return n;
 }
 
-int tree_is_full(MerkleTreeHashNode* node){
-    if(node==NULL)return 1; // yeah technically
+// determines whether the tree is full (and thus need a new layer when inserting
+// a new transaction).
+// params
+//  *tree: root of the merkle tree
+// return
+//  1 or 0 (bool), whether the tree is full
+int tree_is_full(MerkleTreeHashNode* tree){
+    if(tree==NULL)return 1; // yeah technically
     // returns true if every non-leaf has two children, even if
     // tree is uneven
-    if(node->data!=NULL){
+    if(tree->data!=NULL){
         return 1;
     }
-    if(node->left==NULL || node->right==NULL){
+    if(tree->left==NULL || node->right==NULL){
         return 0;
     }
-    return tree_is_full(node->left) && tree_is_full(node->right);
+    return tree_is_full(tree->left) && tree_is_full(tree->right);
 }
 
-int tree_depth(MerkleTreeHashNode* node){
-    if(node==NULL)return 0;
+// counts how deep a tree is on the left-most branch.
+// params
+//  *tree: root of the merkle tree.
+// return
+//  depth of the tree. A hash node directly into a data node is depth 1. 
+int tree_depth(MerkleTreeHashNode* tree){
+    if(tree==NULL)return 0;
     // assuming the tree is a good tree, going left is always valid
     // hash directly into a data is depth 1, hash into hash into data is 2, etc
-    MerkleTreeHashNode* n=node;
+    MerkleTreeHashNode* n=tree;
     int depth=0;
     while(1){
         if(n->data!=NULL){
@@ -185,6 +203,13 @@ int tree_depth(MerkleTreeHashNode* node){
     return depth;
 }
 
+// initializes a hash node with 0 hash and NULL pointers.
+// Make sure to assign a child or data node to it - a hash node with three NULL
+// pointers is not valid in the tree.
+// params
+//  *node: the hash node
+// return
+//  void
 void initialize_hash_node(MerkleTreeHashNode* node){
     memset(node->hash, 0, 32);
     node->left=NULL;
@@ -192,12 +217,26 @@ void initialize_hash_node(MerkleTreeHashNode* node){
     node->data=NULL;
 }
 
+// Adds a layer to a merkle tree, by creating a new hash node and putting the
+// old tree on the new node's left child pointer.
+// params
+//  *tree: root node of the merkle tree
+// return
+//  void
 void add_layer(MerkleTreeHashNode* tree){
     MerkleTreeHashNode* n=tree;
     tree=malloc(sizeof(MerkleTreeHashNode));
+    initialize_hash_node(tree);
     tree->left=n;
 }
 
+// Adds a new data node to the tree. Adds layers and new hash nodes as needed.
+// Assumes the tree is valid.
+// params
+//  *tree: root of the merkle tree
+//  *node: the data node to add
+// return
+//  void
 void add_data_node(MerkleTreeHashNode* tree, MerkleTreeDataNode* node){
     int index=count_transactions(tree);
     MerkleTreeHashNode* n=tree;
@@ -236,6 +275,9 @@ void add_data_node(MerkleTreeHashNode* tree, MerkleTreeDataNode* node){
 }
 
 // ###### TEMPORARY
+// Adds an array of data nodes to a tree.
+// Not for production use because not-individually-malloc'd nodes can't be
+// individually (recursively) free'd.
 void construct_merkle_tree(BitcoinBlock* block, int transaction_count, MerkleTreeDataNode* data){
     // assumes `data` in array
     // ... might need rework if data is loose (**data??)
@@ -244,11 +286,21 @@ void construct_merkle_tree(BitcoinBlock* block, int transaction_count, MerkleTre
     }
 }
 
+// Frees a data node, and if it has data, free that memory too.
+// params
+//  *node: the data node
+// return
+//  void
 void free_data_node(MerkleTreeDataNode* node){
     if(node->data!=NULL)free(node->data);
     free(node);
 }
 
+// Recursively free all hash nodes and data nodes in a merkle tree.
+// params
+//  *node: root node of a merkle tree
+// return 
+//  void
 void recursive_free_merkle_tree(MerkleTreeHashNode* node){
     if(node->left!=NULL)recursive_free_merkle_tree(node->left);
     if(node->right!=NULL)recursive_free_merkle_tree(node->right);
@@ -256,11 +308,24 @@ void recursive_free_merkle_tree(MerkleTreeHashNode* node){
     free(node);
 }
 
+// Recursively free a bitcoin block and its merkle tree.
+// params
+//  *block: a block
+// return
+//  void
 void recursive_free_block(BitcoinBlock* block){
     recursive_free_merkle_tree(block->merkle_tree);
     free(block);
 }
 
+// Initializes a bitcoin block with 0 hashes, current timestamp, NULL pointers,
+// and an initialized hash node.
+// Will unreference old merkle tree - free them before you initialize.
+// params:
+//  *block: a block
+//  difficulty: difficulty value to be put into the block's header
+// return
+//  void
 void initialize_block(BitcoinBlock* block, int difficulty){
     //initialize header
     block->header.version=4;
@@ -279,6 +344,13 @@ void initialize_block(BitcoinBlock* block, int difficulty){
     initialize_hash_node(block->merkle_tree);
 }
 
+// Attach a block to a blockchain, by assigning this block's prev block pointer
+// and the chain's old last block's next block pointer.
+// params
+//  *genesis: the first block of the chain.
+//  *new_block: a block to attach.
+// return
+//  void
 void attach_block(BitcoinBlock* genesis, BitcoinBlock* new_block){
     BitcoinBlock* n=genesis;
     while(n->next_block!=NULL){
