@@ -9,268 +9,219 @@
 #include <string.h>
 #include <inttypes.h>
 #include <fcntl.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 #include <sha2.h>
 #include <bitcoin_utils.h>
 #include <data_utils.h>
 #include <debug_utils.h>
+#include <custom_errors.h>
+
+#define CP(x) printf("Checkpoint %d\n",x);
+
+#define NUM_PROCESSES 5
+#define SHARED_BUF_CHAIN_SIZE 1048576 //1MB
+#define SHARED_BUF_BLOCK_SIZE 32768   //32KB
+// in reality, the randomizer gives a random of up to 29 transactions, each with
+// up to 511 bytes of data. This means one block is about max 15KB, and 1MB
+// can hold up to 60-70 max size blocks. Of course an average block would be
+// smaller.
+
+
+typedef struct{
+    int result_found;
+    char chain_data[SHARED_BUF_CHAIN_SIZE];
+    char new_block_data[SHARED_BUF_BLOCK_SIZE];
+    char* target;
+    int no_more_jobs;
+}SharedData1;
+
+void process_miner(int id, SharedData1* sd){
+    printf("CHILD %d: spawned\n",id);
+    // prepare semaphore references
+    sem_t* issue_job_sync_sem=sem_open("/issuejob", O_RDWR);
+    sem_t* job_end_sync_sem=sem_open("/jobend", O_RDWR);
+    sem_t* result_found_mutex=sem_open("/resultfound", O_RDWR);
+    
+    // prepare vars
+    BitcoinHeader working_header;
+    BitcoinBlock* deserialized_block=NULL;
+    BitcoinBlock* result_chain=NULL;
+    
+    int err;
+    int rv; //return value
+    // main loop
+    while(1){
+        // wait for parent to issue job and release lock
+        //printf("CHILD %d: I'm waiting for parent to release issuejob\n",id);
+        sem_wait(issue_job_sync_sem);
+        //printf("CHILD %d: I'm released from issuejob\n",id);
+        // check `sd` for no-more-jobs signal
+        if(sd->no_more_jobs){
+            printf("CHILD %d: No more job flag raised, breaking out of main loop\n", id);
+            break;
+        }
+        
+        //deserialize the data in shared mem
+        deserialized_block=malloc(sizeof(BitcoinBlock));
+        initialize_block(deserialized_block, 0);
+        rv=deserialize_block(deserialized_block, sd->new_block_data, &err);
+        if(rv==-1){
+            perror_custom(err, NULL);
+        }
+        working_header=deserialized_block->header;
+        
+        //printf("CHILD %d: I'm entering main loop\n",id);
+        for(int i=0; i<2147483647; i++){
+            if(sd->result_found){
+                // could have merged the conditional in the loop, but
+                // 1, I don't like cramming conditions in the loop,
+                // 2, I can print stuff here this way
+                printf("CHILD %d: Someone found result; breaking at i=%d\n", id, i);
+                break;
+            }
+            working_header.nonce=i;
+            if(is_good_block(&working_header, sd->target)){
+                sem_wait(result_found_mutex);
+                // *actually* make sure no one beat me to it
+                if(sd->result_found){
+                    printf("CHILD %d: I found a nonce, but someone beat me to it in writing it to the shared memory.\n",id);
+                }else{
+                    sd->result_found=1;
+                    deserialized_block->header.nonce=i;
+                    // deserialize chain
+                    result_chain=malloc(sizeof(BitcoinBlock));
+                    initialize_block(result_chain,0);
+                    deserialize_blockchain(result_chain, sd->chain_data, NULL);
+                    // attach block
+                    attach_block(result_chain, deserialized_block);
+                    // re-serialize block
+                    serialize_blockchain(result_chain, SHARED_BUF_CHAIN_SIZE, sd->chain_data, &err);
+                    
+                    recursive_free_blockchain(result_chain);
+                    printf("CHILD %d: found a valid nonce %d\n", id, i);
+                }
+                sem_post(result_found_mutex);
+                //printf("CHILD %d: I'm out of the mutex\n", id);
+                break;
+            }
+        }
+        // cleanup
+        //recursive_free_block(deserialized_block);
+        // deserialized_block is, at this point, already a part of result_chain
+        // freeing both leads to a double free
+        // however, this isn't caught by the system and simply crashes the child,
+        // without any error info, and hangs the parent.
+        // There might need to be some changes here...
+        
+        // tell parent that I'm done
+        sem_post(job_end_sync_sem);
+    }
+}
+
 
 int main(){
-    printf("%x",DIFFICULTY_1M);
-    exit(0);
+    
     // seed the random number generator
     srand(time(NULL));
     
-    int difficulty=0x1f03a30c;
+    // C warm up: brute force one block
+    int difficulty=DIFFICULTY_1M;
     char target[32];
     construct_target(difficulty, &target);
     
     
-    BitcoinBlockv3* genesis=malloc(sizeof(BitcoinBlockv3));
-    // construct a block
-    initialize_block_v3(genesis, difficulty);
+    // synchronization, or an attempt of it
+    int num_tasks=10; // so that no endless loop is made
     
-    // transactions
-    MerkleTreeDataNode* tx=malloc(sizeof(MerkleTreeDataNode)*5);
-    for(int i=0; i<5; i++){
-        get_random_transaction(tx+i);
-        add_data_node_v3(genesis->merkle_tree, tx+i);
-    }
+    // prepare shared memory
+    int fd=shm_open("/minejobs", O_CREAT|O_RDWR, 0666);
+    ftruncate(fd, sizeof(SharedData1));
+    SharedData1* sd=mmap(NULL, sizeof(SharedData1), PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+    sd->result_found=0;
+    sd->no_more_jobs=0;
+    sd->target=target;
     
-    update_merkle_root_v3(genesis);
+    // temporary vars
+    BitcoinBlock* new_block=NULL;
+    BitcoinBlock* chain;
     
-    
-    // make another block
-    BitcoinBlockv3* block2=malloc(sizeof(BitcoinBlockv3));
-    // construct a block
-    initialize_block_v3(block2, difficulty);
-    
-    // transactions
-    MerkleTreeDataNode* tx2=malloc(sizeof(MerkleTreeDataNode)*5);
-    for(int i=0; i<5; i++){
-        get_random_transaction(tx2+i);
-        add_data_node_v3(block2->merkle_tree, tx2+i);
-    }
-    
-    update_merkle_root_v3(block2);
-    
-    
-    
-    
-    // attach a block
-    attach_block_v3(genesis, block2);
-    
-    
-    // verify it works
-    char buf[50000];
-    int l=serialize_blockchain_v3(genesis, 50000, buf);
-    if(l==-1){
-        perror(NULL);
+    // create a dummy first block, so that children don't work with an empty chain
+    chain=malloc(sizeof(BitcoinBlock));
+    initialize_block(chain,0);
+    get_dummy_genesis_block(chain);
+    int err;
+    int rv=serialize_blockchain(chain, SHARED_BUF_CHAIN_SIZE, sd->chain_data, &err);
+    if(rv==-1){
+        perror_custom(err, NULL);
     }else{
-        printf("written %d bytes\n",l);
+        printf("%d\n",rv);
     }
-    BitcoinBlockv3* g2=malloc(sizeof(BitcoinBlockv3));
-    initialize_block_v3(g2, difficulty);
-    l=deserialize_blockchain_v3(buf, g2);
-    if(l==-1){
-        perror(NULL);
-    }else{
-        printf("read %d bytes\n",l);
-    }
-    /*int opcode;
-    BitcoinBlockv3* b=genesis;
-    MerkleTreeHashNode* p=b->merkle_tree;
     
-    while(1){
-        debug_print_header(b->header);
-        printf("prevb: %s\n",b->previous_block==NULL?"-":"yes");
-        printf("nextb: %s\n\n",b->next_block==NULL?"-":"yes");
+    // prepare semaphores
+    sem_t* issue_job_sync_sem=sem_open("/issuejob",O_CREAT|O_RDWR, 0666, 0);
+    sem_t* job_end_sync_sem=sem_open("/jobend",O_CREAT|O_RDWR, 0666, 0);
+    /*sem_t* result_found_mutex=*/sem_open("/resultfound",O_CREAT|O_RDWR, 0666, 1);
+    
+    
+    pid_t pid;
+    for(int fork_num=0; fork_num<NUM_PROCESSES; fork_num++){
+        pid=fork();
+        if(pid==0){
+            process_miner(fork_num, sd);
+            exit(0);
+        }
+    }
+    
+    for(int task_num=0; task_num<num_tasks; task_num++){
+        // prepare task
+        // on first loop, since new_block is NULL, this free does nothing
+        // otherwise, it frees the block from previous loop
+        recursive_free_block(new_block);
+        new_block=malloc(sizeof(BitcoinBlock));
+        initialize_block(new_block, difficulty);
+        randomize_block(new_block);
+        // the chain is either from before the loop, or end of previous loop
+        obtain_last_block_hash(chain, new_block->header.previous_block_hash);
         
-        printf("hash : ");
-            debug_print_hex_line(p->hash, 32);
-        printf("left : %s\n", p->left==NULL?"-":"yes");
-        printf("right: %s\n", p->right==NULL?"-":"yes");
-        printf("data : %s\n", p->data==NULL?"-":"yes");
-        printf("0 -break\n");
-        printf("1 -left\n");
-        printf("2 -right\n");
-        printf("3 -data\n");
-        printf("4 -reset to top\n");
-        printf("5 -prev block\n");
-        printf("6 -next block\n");
-        printf("> ");
-        scanf("%d",&opcode);
-        switch(opcode){
-            case 0:
-                exit(0);
-                break;
-            case 1:
-                p=p->left;
-                break;
-            case 2:
-                p=p->right;
-                break;
-            case 3:
-                printf("length: %d\n",p->data->length);
-                debug_print_hex_line(p->data->data, p->data->length);
-                break;
-            case 4:
-                p=genesis->merkle_tree;
-                break;
-            case 5:
-                b=b->previous_block;
-                p=b->merkle_tree;
-                break;
-            case 6:
-                b=b->next_block;
-                p=b->merkle_tree;
-                break;
+        serialize_block(new_block, SHARED_BUF_BLOCK_SIZE, sd->new_block_data, NULL);
+        
+        sd->result_found=0;
+        
+        // release children
+        for(int fork_num=0; fork_num<NUM_PROCESSES; fork_num++){
+            sem_post(issue_job_sync_sem);
         }
+        
+        // wait for children to finish
+        for(int fork_num=0; fork_num<NUM_PROCESSES; fork_num++){
+            // could have merged with previous loop but, eh, it's clearer
+            // this way
+            sem_wait(job_end_sync_sem);
+        }
+        
+        // we should now have a result we could print
+        // ... except we need to deserialize the chain to obtain said value
+        recursive_free_blockchain(chain);
+        chain=malloc(sizeof(BitcoinBlock));
+        initialize_block(chain, 0);
+        deserialize_blockchain(chain, sd->chain_data, NULL);
+        printf("Parent: the last attached block has nonce %d\n", obtain_last_nonce(chain));
     }
-    */
-    
-    /*
-    MerkleTreeDataNode* data1=malloc(sizeof(MerkleTreeDataNode));
-    MerkleTreeDataNode* data2=malloc(sizeof(MerkleTreeDataNode));
-    MerkleTreeDataNode* data3=malloc(sizeof(MerkleTreeDataNode));
-    
-    // These are the first three transactions of Bitcoin, spread across
-    // the first three blocks on the blockchain.
-    // Let's pretend we put them together in one block...
-    char transaction1[]={
-        0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff,
-        0xff, 0x4d, 0x04, 0xff, 0xff, 0x00, 0x1d, 0x01,
-        0x04, 0x45, 0x54, 0x68, 0x65, 0x20, 0x54, 0x69,
-        0x6d, 0x65, 0x73, 0x20, 0x30, 0x33, 0x2f, 0x4a,
-        0x61, 0x6e, 0x2f, 0x32, 0x30, 0x30, 0x39, 0x20,
-        0x43, 0x68, 0x61, 0x6e, 0x63, 0x65, 0x6c, 0x6c,
-        0x6f, 0x72, 0x20, 0x6f, 0x6e, 0x20, 0x62, 0x72,
-        0x69, 0x6e, 0x6b, 0x20, 0x6f, 0x66, 0x20, 0x73,
-        0x65, 0x63, 0x6f, 0x6e, 0x64, 0x20, 0x62, 0x61,
-        0x69, 0x6c, 0x6f, 0x75, 0x74, 0x20, 0x66, 0x6f,
-        0x72, 0x20, 0x62, 0x61, 0x6e, 0x6b, 0x73, 0xff,
-        0xff, 0xff, 0xff, 0x01, 0x00, 0xf2, 0x05, 0x2a,
-        0x01, 0x00, 0x00, 0x00, 0x43, 0x41, 0x04, 0x67,
-        0x8a, 0xfd, 0xb0, 0xfe, 0x55, 0x48, 0x27, 0x19,
-        0x67, 0xf1, 0xa6, 0x71, 0x30, 0xb7, 0x10, 0x5c,
-        0xd6, 0xa8, 0x28, 0xe0, 0x39, 0x09, 0xa6, 0x79,
-        0x62, 0xe0, 0xea, 0x1f, 0x61, 0xde, 0xb6, 0x49,
-        0xf6, 0xbc, 0x3f, 0x4c, 0xef, 0x38, 0xc4, 0xf3,
-        0x55, 0x04, 0xe5, 0x1e, 0xc1, 0x12, 0xde, 0x5c,
-        0x38, 0x4d, 0xf7, 0xba, 0x0b, 0x8d, 0x57, 0x8a,
-        0x4c, 0x70, 0x2b, 0x6b, 0xf1, 0x1d, 0x5f, 0xac,
-        0x00, 0x00, 0x00, 0x00
-    };
-    char transaction2[]={
-        0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff,
-        0xff, 0x07, 0x04, 0xff, 0xff, 0x00, 0x1d, 0x01,
-        0x04, 0xff, 0xff, 0xff, 0xff, 0x01, 0x00, 0xf2,
-        0x05, 0x2a, 0x01, 0x00, 0x00, 0x00, 0x43, 0x41,
-        0x04, 0x96, 0xb5, 0x38, 0xe8, 0x53, 0x51, 0x9c,
-        0x72, 0x6a, 0x2c, 0x91, 0xe6, 0x1e, 0xc1, 0x16,
-        0x00, 0xae, 0x13, 0x90, 0x81, 0x3a, 0x62, 0x7c,
-        0x66, 0xfb, 0x8b, 0xe7, 0x94, 0x7b, 0xe6, 0x3c,
-        0x52, 0xda, 0x75, 0x89, 0x37, 0x95, 0x15, 0xd4,
-        0xe0, 0xa6, 0x04, 0xf8, 0x14, 0x17, 0x81, 0xe6,
-        0x22, 0x94, 0x72, 0x11, 0x66, 0xbf, 0x62, 0x1e,
-        0x73, 0xa8, 0x2c, 0xbf, 0x23, 0x42, 0xc8, 0x58,
-        0xee, 0xac, 0x00, 0x00, 0x00, 0x00
-    };
-    char transaction3[]={
-        0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff,
-        0xff, 0x07, 0x04, 0xff, 0xff, 0x00, 0x1d, 0x01,
-        0x0b, 0xff, 0xff, 0xff, 0xff, 0x01, 0x00, 0xf2,
-        0x05, 0x2a, 0x01, 0x00, 0x00, 0x00, 0x43, 0x41,
-        0x04, 0x72, 0x11, 0xa8, 0x24, 0xf5, 0x5b, 0x50,
-        0x52, 0x28, 0xe4, 0xc3, 0xd5, 0x19, 0x4c, 0x1f,
-        0xcf, 0xaa, 0x15, 0xa4, 0x56, 0xab, 0xdf, 0x37,
-        0xf9, 0xb9, 0xd9, 0x7a, 0x40, 0x40, 0xaf, 0xc0,
-        0x73, 0xde, 0xe6, 0xc8, 0x90, 0x64, 0x98, 0x4f,
-        0x03, 0x38, 0x52, 0x37, 0xd9, 0x21, 0x67, 0xc1,
-        0x3e, 0x23, 0x64, 0x46, 0xb4, 0x17, 0xab, 0x79,
-        0xa0, 0xfc, 0xae, 0x41, 0x2a, 0xe3, 0x31, 0x6b,
-        0x77, 0xac, 0x00, 0x00, 0x00, 0x00
-    };
-    
-    data1->length=204;
-    data1->data=&transaction1;
-    data2->length=134;
-    data2->data=&transaction2;
-    data3->length=134;
-    data3->data=&transaction3;
-    
-    MerkleTreeHashNode* node1=malloc(sizeof(MerkleTreeHashNode));
-    node1->left=NULL;
-    node1->right=NULL;
-    node1->data=data1;
-    
-    MerkleTreeHashNode* node2=malloc(sizeof(MerkleTreeHashNode));
-    node2->left=NULL;
-    node2->right=NULL;
-    node2->data=data2;
-    
-    MerkleTreeHashNode* node3=malloc(sizeof(MerkleTreeHashNode));
-    node3->left=NULL;
-    node3->right=NULL;
-    node3->data=data3;
-    
-    MerkleTreeHashNode* node12=malloc(sizeof(MerkleTreeHashNode));
-    node12->left=node1;
-    node12->right=node2;
-    node12->data=NULL;
-    
-    MerkleTreeHashNode* node34=malloc(sizeof(MerkleTreeHashNode));
-    node34->left=node3;
-    node34->right=NULL;
-    node34->data=NULL;
-    
-    MerkleTreeHashNode* node1234=malloc(sizeof(MerkleTreeHashNode));
-    node1234->left=node12;
-    node1234->right=node34;
-    node1234->data=NULL;
-    
-    BitcoinBlock block;
-    block.merkle_tree=node1234;
-    
-    update_merkle_root(&block);
-    
-    debug_print_hex_line(&(block.header.merkle_root), 32);
-    // should be:
-    // 6A9CC4EACE6C3F1EF9A5278FB66633CE3973492107F134F60FD551E48C9A948A
-    
-    block.header.version=4;
-    memset(&(block.header.previous_block_hash), 0, 32);
-    block.header.timestamp=time(NULL);
-    block.header.difficulty=difficulty;
-    block.header.nonce=0;
-    
-    for(int i=0; i<2147483647; i++){
-        block.header.nonce=i;
-        if(is_good_block(&(block.header), &target)){
-            printf("Nonce found: %d\n", i);
-            break;
-        }
+    sd->no_more_jobs=1;
+    for(int fork_num=0; fork_num<NUM_PROCESSES; fork_num++){
+        sem_post(issue_job_sync_sem);
     }
     
-    free(node1);
-    free(node2);
-    free(node3);
-    free(node12);
-    free(node34);
-    free(node1234);
-    */
+    for(int fork_num=0; fork_num<NUM_PROCESSES; fork_num++){
+        wait(NULL);
+    }
+    
+    shm_unlink("/issuejob");
+    shm_unlink("/jobend");
+    shm_unlink("/resultfound");
+    
     return 0;
     
 }

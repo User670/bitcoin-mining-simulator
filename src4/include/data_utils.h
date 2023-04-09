@@ -10,22 +10,28 @@ void get_random_continuation_header(BitcoinHeader* header, void* prev_blk_hash, 
 
 void get_random_transaction(MerkleTreeDataNode* node);
 
+void randomize_block(BitcoinBlock* block);
+
 void obtain_last_block_hash(BitcoinBlock* genesis, void* digest);
 
-int serialize_data_node(MerkleTreeDataNode* node, int max_size, void* buf);
+int obtain_last_nonce(BitcoinBlock* genesis);
 
-int serialize_merkle_tree(MerkleTreeHashNode* node, int max_size, void* buf);
+int serialize_data_node(MerkleTreeDataNode* node, int max_size, void* buf, int* err);
 
-int serialize_block(BitcoinBlock* block, int max_size, void* buf);
+int serialize_merkle_tree(MerkleTreeHashNode* node, int max_size, void* buf, int* err);
 
-int serialize_blockchain(BitcoinBlock* genesis, int max_size, void* buf);
+int serialize_block(BitcoinBlock* block, int max_size, void* buf, int* err);
 
-int deserialize_data_node(void* serialized_buf, MerkleTreeDataNode* obj);
+int serialize_blockchain(BitcoinBlock* genesis, int max_size, void* buf, int* err);
 
-int deserialize_merkle_tree(void* serialized_buf, MerkleTreeHashNode* obj);
+int deserialize_data_node(MerkleTreeDataNode* obj, void* serialized_buf, int* err);
 
-int deserialize_block(void* serialized_buf, BitcoinBlock* block);
+int deserialize_merkle_tree(MerkleTreeHashNode* obj, void* serialized_buf, int* err);
 
-int deserialize_blockchain(void* serialized_buf, BitcoinBlock* genesis);
+int deserialize_block(BitcoinBlock* block, void* serialized_buf, int* err);
+
+int deserialize_blockchain(BitcoinBlock* genesis, void* serialized_buf, int* err);
+
+void get_dummy_genesis_block(BitcoinBlock* block);
 
 #endif

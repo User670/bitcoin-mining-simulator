@@ -56,7 +56,7 @@ void construct_target(int d, void* target_storage){
 //  1 or 0, to be interpreted as bool, whether the header's hash is below target
 int is_good_block(BitcoinHeader* header, const char* target){
     char hash_storage[32];
-    dsha(header, sizeof(BitcoinHeader), &hash_storage);
+    dsha(header, sizeof(BitcoinHeader), hash_storage);
     if (memcmp(hash_storage, target, 32)<0){
         return 1;
     }else{
@@ -75,7 +75,7 @@ void merkle_hash(void* a, void* b, void* digest){
     char s[64];
     memcpy(&s, a, 32);
     memcpy((&s[32]), b, 32);
-    dsha(&s, 64, digest);
+    dsha(s, 64, digest);
 }
 
 // calculate merkle root and copy it to the header
@@ -88,7 +88,7 @@ void update_merkle_root(BitcoinBlock* block){
     // taking the block itself makes C duplicate the value for the
     // function, and unable to modify it outside
     calculate_merkle_root_top_down(block->merkle_tree);
-    memcpy(&(block->header.merkle_root),&(block->merkle_tree->hash),32);
+    memcpy(block->header.merkle_root,block->merkle_tree->hash,32);
 }
 
 // (might work with v3)
@@ -109,15 +109,15 @@ void calculate_merkle_root_top_down(MerkleTreeHashNode* node){
         }
         if(node->right==NULL){
             // when lacking a right child, left's hash is repeated
-            merkle_hash(&(node->left->hash),&(node->left->hash),&(node->hash));
+            merkle_hash(node->left->hash,node->left->hash,node->hash);
         }else{
             calculate_merkle_root_top_down(node->right);
-            merkle_hash(&(node->left->hash),&(node->right->hash),&(node->hash));
+            merkle_hash(node->left->hash,node->right->hash,node->hash);
         }
     }else{
         // has a data node as child
         // calculate hash of that data
-        dsha(&(node->data->data), node->data->length, &(node->hash));
+        dsha(node->data->data, node->data->length, node->hash);
     }
 }
 
@@ -140,7 +140,7 @@ TODO for bitcoin and merkle tree structure:
 //  *tree: root of the merkle tree
 // return
 //  number of transactions
-int count_transactions_(MerkleTreeHashNode* tree){
+int count_transactions(MerkleTreeHashNode* tree){
     if(tree==NULL)return 0;
     if(tree->data!=NULL){
         return 1;
@@ -170,7 +170,7 @@ int tree_is_full(MerkleTreeHashNode* tree){
     if(tree->data!=NULL){
         return 1;
     }
-    if(tree->left==NULL || node->right==NULL){
+    if(tree->left==NULL || tree->right==NULL){
         return 0;
     }
     return tree_is_full(tree->left) && tree_is_full(tree->right);
@@ -224,10 +224,17 @@ void initialize_hash_node(MerkleTreeHashNode* node){
 // return
 //  void
 void add_layer(MerkleTreeHashNode* tree){
-    MerkleTreeHashNode* n=tree;
-    tree=malloc(sizeof(MerkleTreeHashNode));
-    initialize_hash_node(tree);
-    tree->left=n;
+    MerkleTreeHashNode* new_node=malloc(sizeof(MerkleTreeHashNode));
+    initialize_hash_node(new_node);
+    // clone the old root to the new node
+    new_node->left=tree->left;
+    new_node->right=tree->right;
+    new_node->data=tree->data;
+    // don't care about hash; it'll have to be updated anyway
+    // now wipe the root, assign left
+    tree->left=new_node;
+    tree->right=NULL;
+    tree->data=NULL;
 }
 
 // Adds a new data node to the tree. Adds layers and new hash nodes as needed.
@@ -242,6 +249,7 @@ void add_data_node(MerkleTreeHashNode* tree, MerkleTreeDataNode* node){
     MerkleTreeHashNode* n=tree;
     if(tree_is_full(n)){
         add_layer(tree);
+        n=tree;
     }
     // convert `index` to binary (bits saves the digits in reverse)
     // binary digits -> path down the tree (1=R, 0=L)
@@ -292,6 +300,7 @@ void construct_merkle_tree(BitcoinBlock* block, int transaction_count, MerkleTre
 // return
 //  void
 void free_data_node(MerkleTreeDataNode* node){
+    if(node==NULL)return;
     if(node->data!=NULL)free(node->data);
     free(node);
 }
@@ -302,6 +311,7 @@ void free_data_node(MerkleTreeDataNode* node){
 // return 
 //  void
 void recursive_free_merkle_tree(MerkleTreeHashNode* node){
+    if(node==NULL)return;
     if(node->left!=NULL)recursive_free_merkle_tree(node->left);
     if(node->right!=NULL)recursive_free_merkle_tree(node->right);
     if(node->data!=NULL)free_data_node(node->data);
@@ -314,8 +324,20 @@ void recursive_free_merkle_tree(MerkleTreeHashNode* node){
 // return
 //  void
 void recursive_free_block(BitcoinBlock* block){
-    recursive_free_merkle_tree(block->merkle_tree);
+    if(block==NULL)return;
+    if(block->merkle_tree!=NULL)recursive_free_merkle_tree(block->merkle_tree);
     free(block);
+}
+
+// Recursively free a blockchain
+// params
+//  *block: first block in the chain
+// return
+//  void
+void recursive_free_blockchain(BitcoinBlock* block){
+    if(block==NULL)return;
+    if(block->next_block!=NULL)recursive_free_blockchain(block->next_block);
+    recursive_free_block(block);
 }
 
 // Initializes a bitcoin block with 0 hashes, current timestamp, NULL pointers,

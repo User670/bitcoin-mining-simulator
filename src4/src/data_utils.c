@@ -1,4 +1,6 @@
 #include <bitcoin_utils.h>
+#include <debug_utils.h>
+#include <custom_errors.h>
 #include <sha2.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,6 +9,8 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <time.h>
+
+
 
 // gives a random 32-byte hash.
 // For simplicity, it just hashes a random integer.
@@ -66,6 +70,24 @@ void get_random_transaction(MerkleTreeDataNode* node){
     }
 }
 
+// *adds* random transactions to the block - preferably use this on an empty
+// block.
+// params
+//  *block: the block
+// return
+//  void
+void randomize_block(BitcoinBlock* block){
+    // random integer between 5 and 29 - # of transactions
+    int length=rand()%25+5;
+    MerkleTreeDataNode* n;
+    for(int i=0; i<length; i++){
+        n=malloc(sizeof(MerkleTreeDataNode));
+        get_random_transaction(n);
+        add_data_node(block->merkle_tree, n);
+    }
+    update_merkle_root(block);
+}
+
 // Calculates the hash of the last block's header.
 // params
 //  *genesis: the first block of a blockchain.
@@ -80,6 +102,20 @@ void obtain_last_block_hash(BitcoinBlock* genesis, void* digest){
     dsha(&(n->header), sizeof(BitcoinHeader), digest);
 }
 
+// Obtain the nonce of the lash block in a chain.
+// params
+//  *genesis: the first block of a blockchain
+// return
+//  void
+int obtain_last_nonce(BitcoinBlock* genesis){
+    BitcoinBlock* n=genesis;
+    while(n->next_block!=NULL){
+        n=n->next_block;
+    }
+    return n->header.nonce;
+}
+
+
 // ######PRIVATE
 // "serialize" a value into a buffer.
 // params
@@ -90,12 +126,9 @@ void obtain_last_block_hash(BitcoinBlock* genesis, void* digest){
 // return
 //  On success, return the number of bytes written (=size).
 //  On error, return -1.
-// errors
-//  ENOMEM: The buffer doesn't have enough memory to hold the data, as indicated
-//          by the max_size parameter.
-int _serialize_value(void* value, int size, int max_size, void* buf){
+int _serialize_value(void* value, int size, int max_size, void* buf, int* err){
     if(size>max_size){
-        errno=ENOMEM;
+        if(err!=NULL)*err=E_CUSTOM_NOMEM;
         return -1;
     }
     memcpy(buf, value, size);
@@ -113,18 +146,15 @@ int _serialize_value(void* value, int size, int max_size, void* buf){
 // return
 //  On success, return the number of bytes written.
 //  On error, return -1.
-// errors
-//  ENOMEM: The buffer doesn't have enough memory to hold the data, as indicated
-//          by the max_size parameter.
-int serialize_data_node(MerkleTreeDataNode* node, int max_size, void* buf){
+int serialize_data_node(MerkleTreeDataNode* node, int max_size, void* buf, int* err){
     int written_bytes=0;
     int l=0;
     // write length
-    l=_serialize_value(&(node->length), sizeof(int), max_size, buf);
+    l=_serialize_value(&(node->length), sizeof(int), max_size, buf, err);
     if(l==-1)return -1;
     written_bytes+=l;
     // write data
-    l=_serialize_value(node->data, node->length, max_size-written_bytes, buf+written_bytes);
+    l=_serialize_value(node->data, node->length, max_size-written_bytes, buf+written_bytes, err);
     if(l==-1)return -1;
     written_bytes+=l;
     return written_bytes;
@@ -143,17 +173,13 @@ int serialize_data_node(MerkleTreeDataNode* node, int max_size, void* buf){
 // return
 //  On success, return the number of bytes written.
 //  On error, return -1.
-// errors
-//  ENOMEM: The buffer doesn't have enough memory to hold the data, as indicated
-//          by the max_size parameter.
-//  EINVAL: The merkle tree seems invalid in some way.
-int serialize_merkle_tree(MerkleTreeHashNode* node, int max_size, void* buf){
+int serialize_merkle_tree(MerkleTreeHashNode* node, int max_size, void* buf, int* err){
     int depth=tree_depth(node);
     int count=count_transactions(node);
     int written_bytes=0;
     int l=0;
     // write transaction count
-    l=_serialize_value(&count, sizeof(int), max_size, buf);
+    l=_serialize_value(&count, sizeof(int), max_size, buf, err);
     if(l==-1)return -1;
     written_bytes+=l;
     // traverse tree and write data
@@ -170,14 +196,14 @@ int serialize_merkle_tree(MerkleTreeHashNode* node, int max_size, void* buf){
         for(int d=depth-2; d>=0; d--){
             if(bits[d]){
                 if(h->right==NULL){
-                    errno=EINVAL;
+                    if(err!=NULL)*err=E_CUSTOM_BADTREE;
                     return -1;
                 }else{
                     h=h->right;
                 }
             }else{
                 if(h->left==NULL){
-                    errno=EINVAL;
+                    if(err!=NULL)*err=E_CUSTOM_BADTREE;
                     return -1;
                 }else{
                     h=h->left;
@@ -185,10 +211,10 @@ int serialize_merkle_tree(MerkleTreeHashNode* node, int max_size, void* buf){
             }
         }
         if(h->data==NULL){
-            errno=EINVAL;
+            if(err!=NULL)*err=E_CUSTOM_BADTREE;
             return -1;
         }
-        l=serialize_data_node(h->data, max_size-written_bytes, buf+written_bytes);
+        l=serialize_data_node(h->data, max_size-written_bytes, buf+written_bytes, err);
         if(l==-1)return -1;
         written_bytes+=l;
     }
@@ -207,19 +233,15 @@ int serialize_merkle_tree(MerkleTreeHashNode* node, int max_size, void* buf){
 // return
 //  On success, return the number of bytes written.
 //  On error, return -1.
-// errors
-//  ENOMEM: The buffer doesn't have enough memory to hold the data, as indicated
-//          by the max_size parameter.
-//  EINVAL: The merkle tree seems invalid in some way.
-int serialize_block(BitcoinBlock* block, int max_size, void* buf){
+int serialize_block(BitcoinBlock* block, int max_size, void* buf, int* err){
     int written_bytes=0;
     int l=0;
     // write header
-    l=_serialize_value(&(block->header), sizeof(BitcoinHeader), max_size, buf);
+    l=_serialize_value(&(block->header), sizeof(BitcoinHeader), max_size, buf, err);
     if(l==-1)return -1;
     written_bytes+=l;
     // write tree
-    l=serialize_merkle_tree(block->merkle_tree, max_size-written_bytes, buf+written_bytes);
+    l=serialize_merkle_tree(block->merkle_tree, max_size-written_bytes, buf+written_bytes, err);
     if(l==-1)return -1;
     written_bytes+=l;
     return written_bytes;
@@ -237,11 +259,7 @@ int serialize_block(BitcoinBlock* block, int max_size, void* buf){
 // return
 //  On success, return the number of bytes written.
 //  On error, return -1.
-// errors
-//  ENOMEM: The buffer doesn't have enough memory to hold the data, as indicated
-//          by the max_size parameter.
-//  EINVAL: A merkle tree in the blockchain seems invalid in some way.
-int serialize_blockchain(BitcoinBlock* genesis, int max_size, void* buf){
+int serialize_blockchain(BitcoinBlock* genesis, int max_size, void* buf, int* err){
     int block_count=1;
     BitcoinBlock* n=genesis;
     while(n->next_block!=NULL){
@@ -251,13 +269,13 @@ int serialize_blockchain(BitcoinBlock* genesis, int max_size, void* buf){
     int written_bytes=0;
     int l=0;
     // write block count
-    l=_serialize_value(&block_count, sizeof(int), max_size, buf);
+    l=_serialize_value(&block_count, sizeof(int), max_size, buf, err);
     if(l==-1)return -1;
     written_bytes+=l;
     // write each block
     n=genesis;
     while(1){
-        l=serialize_block(n, max_size-written_bytes, buf+written_bytes);
+        l=serialize_block(n, max_size-written_bytes, buf+written_bytes, err);
         if(l==-1)return -1;
         written_bytes+=l;
         if(n->next_block!=NULL){
@@ -277,13 +295,11 @@ int serialize_blockchain(BitcoinBlock* genesis, int max_size, void* buf){
 // returns
 //  On success, return number of bytes read.
 //  On error, return -1.
-// errors
-//  EINVAL: The length reads zero or negative.
-int deserialize_data_node(void* serialized_buf, MerkleTreeDataNode* obj){
+int deserialize_data_node(MerkleTreeDataNode* obj, void* serialized_buf, int* err){
     // load length
     memcpy(&(obj->length), serialized_buf, sizeof(int));
     if(obj->length<=0){
-        errno=EINVAL;
+        if(err!=NULL)*err=E_CUSTOM_BADDATALEN;
         return -1;
     }
     // load transaction
@@ -301,9 +317,7 @@ int deserialize_data_node(void* serialized_buf, MerkleTreeDataNode* obj){
 // returns
 //  On success, return number of bytes read.
 //  On error, return -1.
-// errors
-//  EINVAL: The length of the tree, or a data node, reads zero or negative.
-int deserialize_merkle_tree(void* serialized_buf, MerkleTreeHashNode* obj){
+int deserialize_merkle_tree(MerkleTreeHashNode* obj, void* serialized_buf, int* err){
     // load length
     int read_bytes=0;
     int l=0;
@@ -311,7 +325,7 @@ int deserialize_merkle_tree(void* serialized_buf, MerkleTreeHashNode* obj){
     memcpy(&transaction_count, serialized_buf, sizeof(int));
     read_bytes+=sizeof(int);
     if(transaction_count<=0){
-        errno=EINVAL;
+        if(err!=NULL)*err=E_CUSTOM_BADTREELEN;
         return -1;
     }
     // initialize the hash node
@@ -322,7 +336,7 @@ int deserialize_merkle_tree(void* serialized_buf, MerkleTreeHashNode* obj){
     MerkleTreeDataNode* n;
     for(int i=0; i<transaction_count; i++){
         n=malloc(sizeof(MerkleTreeDataNode));
-        l=deserialize_data_node(serialized_buf+read_bytes, n);
+        l=deserialize_data_node(n, serialized_buf+read_bytes, err);
         if(l==-1)return -1;
         read_bytes+=l;
         add_data_node(obj, n);
@@ -339,16 +353,14 @@ int deserialize_merkle_tree(void* serialized_buf, MerkleTreeHashNode* obj){
 // returns
 //  On success, return number of bytes read.
 //  On error, return -1.
-// errors
-//  EINVAL: The length of the tree, or a data node, reads zero or negative.
-int deserialize_block(void* serialized_buf, BitcoinBlock* block){
+int deserialize_block(BitcoinBlock* block, void* serialized_buf, int* err){
     int read_bytes=0;
     int l=0;
     // load header
     memcpy(&(block->header), serialized_buf, sizeof(BitcoinHeader));
     read_bytes+=sizeof(BitcoinHeader);
     // load tree
-    l=deserialize_merkle_tree(serialized_buf+read_bytes, block->merkle_tree);
+    l=deserialize_merkle_tree(block->merkle_tree, serialized_buf+read_bytes, err);
     if(l==-1)return -1;
     read_bytes+=l;
     return read_bytes;
@@ -364,16 +376,17 @@ int deserialize_block(void* serialized_buf, BitcoinBlock* block){
 // returns
 //  On success, return number of bytes read.
 //  On error, return -1.
-// errors
-//  EINVAL: The length of the chain, a tree, or a data node, reads zero or negative.
-int deserialize_blockchain(void* serialized_buf, BitcoinBlock* genesis){
+int deserialize_blockchain(BitcoinBlock* genesis, void* serialized_buf, int* err){
     int read_bytes=0;
     int l=0;
     // load chain length
     int length=0;
     memcpy(&length, serialized_buf, sizeof(int));
-    if(length<=0){
-        errno=EINVAL;
+    if(length==0){
+        if(err!=NULL)*err=E_CUSTOM_EMPTYCHAIN;
+        return -1;
+    }else if(length<0){
+        if(err!=NULL)*err=E_CUSTOM_BADCHAINLEN;
         return -1;
     }
     read_bytes=sizeof(int);
@@ -382,9 +395,9 @@ int deserialize_blockchain(void* serialized_buf, BitcoinBlock* genesis){
         if(i==0)b=genesis;
         else{
             b=malloc(sizeof(BitcoinBlock));
-            b->merkle_tree=malloc(sizeof(MerkleTreeHashNode));
+            initialize_block(b,0);
         }
-        l=deserialize_block(serialized_buf+read_bytes, b);
+        l=deserialize_block(b, serialized_buf+read_bytes, err);
         if(l==-1)return -1;
         read_bytes+=l;
         if(i!=0)attach_block(genesis, b);
@@ -392,6 +405,51 @@ int deserialize_blockchain(void* serialized_buf, BitcoinBlock* genesis){
     return read_bytes;
 }
 
+
+void get_dummy_genesis_block(BitcoinBlock* block){
+    block->header.version=1;
+    memset(block->header.previous_block_hash, 0, 32);
+    // merkle root will be updated later
+    block->header.timestamp=1231006505;
+    block->header.difficulty=0x1d00ffff;
+    block->header.nonce=2083236893;
+    
+    char _data[]={
+            0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff,
+            0xff, 0x4d, 0x04, 0xff, 0xff, 0x00, 0x1d, 0x01,
+            0x04, 0x45, 0x54, 0x68, 0x65, 0x20, 0x54, 0x69,
+            0x6d, 0x65, 0x73, 0x20, 0x30, 0x33, 0x2f, 0x4a,
+            0x61, 0x6e, 0x2f, 0x32, 0x30, 0x30, 0x39, 0x20,
+            0x43, 0x68, 0x61, 0x6e, 0x63, 0x65, 0x6c, 0x6c,
+            0x6f, 0x72, 0x20, 0x6f, 0x6e, 0x20, 0x62, 0x72,
+            0x69, 0x6e, 0x6b, 0x20, 0x6f, 0x66, 0x20, 0x73,
+            0x65, 0x63, 0x6f, 0x6e, 0x64, 0x20, 0x62, 0x61,
+            0x69, 0x6c, 0x6f, 0x75, 0x74, 0x20, 0x66, 0x6f,
+            0x72, 0x20, 0x62, 0x61, 0x6e, 0x6b, 0x73, 0xff,
+            0xff, 0xff, 0xff, 0x01, 0x00, 0xf2, 0x05, 0x2a,
+            0x01, 0x00, 0x00, 0x00, 0x43, 0x41, 0x04, 0x67,
+            0x8a, 0xfd, 0xb0, 0xfe, 0x55, 0x48, 0x27, 0x19,
+            0x67, 0xf1, 0xa6, 0x71, 0x30, 0xb7, 0x10, 0x5c,
+            0xd6, 0xa8, 0x28, 0xe0, 0x39, 0x09, 0xa6, 0x79,
+            0x62, 0xe0, 0xea, 0x1f, 0x61, 0xde, 0xb6, 0x49,
+            0xf6, 0xbc, 0x3f, 0x4c, 0xef, 0x38, 0xc4, 0xf3,
+            0x55, 0x04, 0xe5, 0x1e, 0xc1, 0x12, 0xde, 0x5c,
+            0x38, 0x4d, 0xf7, 0xba, 0x0b, 0x8d, 0x57, 0x8a,
+            0x4c, 0x70, 0x2b, 0x6b, 0xf1, 0x1d, 0x5f, 0xac,
+            0x00, 0x00, 0x00, 0x00
+        };
+    
+    MerkleTreeDataNode* data=malloc(sizeof(MerkleTreeDataNode));
+    data->length=204;
+    data->data=malloc(204);
+    memcpy(data->data, _data, 204);
+    block->merkle_tree->data=data;
+    update_merkle_root(block);
+}
 
 
 

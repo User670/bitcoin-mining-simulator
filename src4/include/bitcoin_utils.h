@@ -53,7 +53,7 @@ void update_merkle_root(BitcoinBlock* block);
 
 void calculate_merkle_root_top_down(MerkleTreeHashNode* node);
 
-int count_transactions_(MerkleTreeHashNode* node);
+int count_transactions(MerkleTreeHashNode* node);
 
 int tree_is_full(MerkleTreeHashNode* node);
 
@@ -72,6 +72,8 @@ void free_data_node(MerkleTreeDataNode* node);
 void recursive_free_merkle_tree(MerkleTreeHashNode* node);
 
 void recursive_free_block(BitcoinBlock* block);
+
+void recursive_free_blockchain(BitcoinBlock* block);
 
 void initialize_block(BitcoinBlock* block, int difficulty);
 

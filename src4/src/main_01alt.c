@@ -10,6 +10,8 @@
 #include <inttypes.h>
 #include <signal.h>
 #include <fcntl.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 #include <sha2.h>
 #include <bitcoin_utils.h>
@@ -47,7 +49,7 @@ int main(){
     srand(time(NULL));
     
     // C warm up: brute force one block
-    int difficulty=0x1f03a30c;
+    int difficulty=DIFFICULTY_1M;
     char target[32];
     construct_target(difficulty, &target);
     
@@ -107,10 +109,10 @@ int main(){
     
     int i;
     pid_t pid_father = getpid();
-    pid_t pid_child[num_processes];
+    pid_t pid_child[NUM_PROCESSES];
     pid_t first_finisher;
     
-    for (i = 0; (i<num_processes)&&((pid_child[i]=fork())!=0); i++)
+    for (i = 0; (i<NUM_PROCESSES)&&((pid_child[i]=fork())!=0); i++)
         ;
     // that's confusing for me tbh
     // I'd write:
@@ -127,13 +129,13 @@ int main(){
         
         
         printf("P> Signalling all other children\n");
-        for (i = 0; i < num_processes; i++) {
+        for (i = 0; i < NUM_PROCESSES; i++) {
             if (pid_child[i] != first_finisher)
                 kill(pid_child[i],SIGUSR1);
         }
 
         printf("P> Checking all children have terminated\n");
-        for (i = 0; i < num_processes; i++) {
+        for (i = 0; i < NUM_PROCESSES; i++) {
             wait(0);
         }
         
@@ -154,7 +156,7 @@ int main(){
         
         //int v=compute();
         //compute();
-        mine_single_block(&block, &target);
+        mine_single_block(&block, target);
         
         printf("%d> found a result!\n", getpid());
         exit(0);

@@ -8,269 +8,160 @@
 #include <sys/mman.h>
 #include <string.h>
 #include <inttypes.h>
+#include <signal.h>
 #include <fcntl.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 #include <sha2.h>
 #include <bitcoin_utils.h>
 #include <data_utils.h>
 #include <debug_utils.h>
 
-int main(){
-    printf("%x",DIFFICULTY_1M);
-    exit(0);
-    // seed the random number generator
-    srand(time(NULL));
-    
-    int difficulty=0x1f03a30c;
-    char target[32];
-    construct_target(difficulty, &target);
-    
-    
-    BitcoinBlockv3* genesis=malloc(sizeof(BitcoinBlockv3));
-    // construct a block
-    initialize_block_v3(genesis, difficulty);
-    
-    // transactions
-    MerkleTreeDataNode* tx=malloc(sizeof(MerkleTreeDataNode)*5);
-    for(int i=0; i<5; i++){
-        get_random_transaction(tx+i);
-        add_data_node_v3(genesis->merkle_tree, tx+i);
-    }
-    
-    update_merkle_root_v3(genesis);
-    
-    
-    // make another block
-    BitcoinBlockv3* block2=malloc(sizeof(BitcoinBlockv3));
-    // construct a block
-    initialize_block_v3(block2, difficulty);
-    
-    // transactions
-    MerkleTreeDataNode* tx2=malloc(sizeof(MerkleTreeDataNode)*5);
-    for(int i=0; i<5; i++){
-        get_random_transaction(tx2+i);
-        add_data_node_v3(block2->merkle_tree, tx2+i);
-    }
-    
-    update_merkle_root_v3(block2);
-    
-    
-    
-    
-    // attach a block
-    attach_block_v3(genesis, block2);
-    
-    
-    // verify it works
-    char buf[50000];
-    int l=serialize_blockchain_v3(genesis, 50000, buf);
-    if(l==-1){
-        perror(NULL);
-    }else{
-        printf("written %d bytes\n",l);
-    }
-    BitcoinBlockv3* g2=malloc(sizeof(BitcoinBlockv3));
-    initialize_block_v3(g2, difficulty);
-    l=deserialize_blockchain_v3(buf, g2);
-    if(l==-1){
-        perror(NULL);
-    }else{
-        printf("read %d bytes\n",l);
-    }
-    /*int opcode;
-    BitcoinBlockv3* b=genesis;
-    MerkleTreeHashNode* p=b->merkle_tree;
-    
-    while(1){
-        debug_print_header(b->header);
-        printf("prevb: %s\n",b->previous_block==NULL?"-":"yes");
-        printf("nextb: %s\n\n",b->next_block==NULL?"-":"yes");
-        
-        printf("hash : ");
-            debug_print_hex_line(p->hash, 32);
-        printf("left : %s\n", p->left==NULL?"-":"yes");
-        printf("right: %s\n", p->right==NULL?"-":"yes");
-        printf("data : %s\n", p->data==NULL?"-":"yes");
-        printf("0 -break\n");
-        printf("1 -left\n");
-        printf("2 -right\n");
-        printf("3 -data\n");
-        printf("4 -reset to top\n");
-        printf("5 -prev block\n");
-        printf("6 -next block\n");
-        printf("> ");
-        scanf("%d",&opcode);
-        switch(opcode){
-            case 0:
-                exit(0);
-                break;
-            case 1:
-                p=p->left;
-                break;
-            case 2:
-                p=p->right;
-                break;
-            case 3:
-                printf("length: %d\n",p->data->length);
-                debug_print_hex_line(p->data->data, p->data->length);
-                break;
-            case 4:
-                p=genesis->merkle_tree;
-                break;
-            case 5:
-                b=b->previous_block;
-                p=b->merkle_tree;
-                break;
-            case 6:
-                b=b->next_block;
-                p=b->merkle_tree;
-                break;
-        }
-    }
-    */
-    
-    /*
-    MerkleTreeDataNode* data1=malloc(sizeof(MerkleTreeDataNode));
-    MerkleTreeDataNode* data2=malloc(sizeof(MerkleTreeDataNode));
-    MerkleTreeDataNode* data3=malloc(sizeof(MerkleTreeDataNode));
-    
-    // These are the first three transactions of Bitcoin, spread across
-    // the first three blocks on the blockchain.
-    // Let's pretend we put them together in one block...
-    char transaction1[]={
-        0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff,
-        0xff, 0x4d, 0x04, 0xff, 0xff, 0x00, 0x1d, 0x01,
-        0x04, 0x45, 0x54, 0x68, 0x65, 0x20, 0x54, 0x69,
-        0x6d, 0x65, 0x73, 0x20, 0x30, 0x33, 0x2f, 0x4a,
-        0x61, 0x6e, 0x2f, 0x32, 0x30, 0x30, 0x39, 0x20,
-        0x43, 0x68, 0x61, 0x6e, 0x63, 0x65, 0x6c, 0x6c,
-        0x6f, 0x72, 0x20, 0x6f, 0x6e, 0x20, 0x62, 0x72,
-        0x69, 0x6e, 0x6b, 0x20, 0x6f, 0x66, 0x20, 0x73,
-        0x65, 0x63, 0x6f, 0x6e, 0x64, 0x20, 0x62, 0x61,
-        0x69, 0x6c, 0x6f, 0x75, 0x74, 0x20, 0x66, 0x6f,
-        0x72, 0x20, 0x62, 0x61, 0x6e, 0x6b, 0x73, 0xff,
-        0xff, 0xff, 0xff, 0x01, 0x00, 0xf2, 0x05, 0x2a,
-        0x01, 0x00, 0x00, 0x00, 0x43, 0x41, 0x04, 0x67,
-        0x8a, 0xfd, 0xb0, 0xfe, 0x55, 0x48, 0x27, 0x19,
-        0x67, 0xf1, 0xa6, 0x71, 0x30, 0xb7, 0x10, 0x5c,
-        0xd6, 0xa8, 0x28, 0xe0, 0x39, 0x09, 0xa6, 0x79,
-        0x62, 0xe0, 0xea, 0x1f, 0x61, 0xde, 0xb6, 0x49,
-        0xf6, 0xbc, 0x3f, 0x4c, 0xef, 0x38, 0xc4, 0xf3,
-        0x55, 0x04, 0xe5, 0x1e, 0xc1, 0x12, 0xde, 0x5c,
-        0x38, 0x4d, 0xf7, 0xba, 0x0b, 0x8d, 0x57, 0x8a,
-        0x4c, 0x70, 0x2b, 0x6b, 0xf1, 0x1d, 0x5f, 0xac,
-        0x00, 0x00, 0x00, 0x00
-    };
-    char transaction2[]={
-        0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff,
-        0xff, 0x07, 0x04, 0xff, 0xff, 0x00, 0x1d, 0x01,
-        0x04, 0xff, 0xff, 0xff, 0xff, 0x01, 0x00, 0xf2,
-        0x05, 0x2a, 0x01, 0x00, 0x00, 0x00, 0x43, 0x41,
-        0x04, 0x96, 0xb5, 0x38, 0xe8, 0x53, 0x51, 0x9c,
-        0x72, 0x6a, 0x2c, 0x91, 0xe6, 0x1e, 0xc1, 0x16,
-        0x00, 0xae, 0x13, 0x90, 0x81, 0x3a, 0x62, 0x7c,
-        0x66, 0xfb, 0x8b, 0xe7, 0x94, 0x7b, 0xe6, 0x3c,
-        0x52, 0xda, 0x75, 0x89, 0x37, 0x95, 0x15, 0xd4,
-        0xe0, 0xa6, 0x04, 0xf8, 0x14, 0x17, 0x81, 0xe6,
-        0x22, 0x94, 0x72, 0x11, 0x66, 0xbf, 0x62, 0x1e,
-        0x73, 0xa8, 0x2c, 0xbf, 0x23, 0x42, 0xc8, 0x58,
-        0xee, 0xac, 0x00, 0x00, 0x00, 0x00
-    };
-    char transaction3[]={
-        0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff,
-        0xff, 0x07, 0x04, 0xff, 0xff, 0x00, 0x1d, 0x01,
-        0x0b, 0xff, 0xff, 0xff, 0xff, 0x01, 0x00, 0xf2,
-        0x05, 0x2a, 0x01, 0x00, 0x00, 0x00, 0x43, 0x41,
-        0x04, 0x72, 0x11, 0xa8, 0x24, 0xf5, 0x5b, 0x50,
-        0x52, 0x28, 0xe4, 0xc3, 0xd5, 0x19, 0x4c, 0x1f,
-        0xcf, 0xaa, 0x15, 0xa4, 0x56, 0xab, 0xdf, 0x37,
-        0xf9, 0xb9, 0xd9, 0x7a, 0x40, 0x40, 0xaf, 0xc0,
-        0x73, 0xde, 0xe6, 0xc8, 0x90, 0x64, 0x98, 0x4f,
-        0x03, 0x38, 0x52, 0x37, 0xd9, 0x21, 0x67, 0xc1,
-        0x3e, 0x23, 0x64, 0x46, 0xb4, 0x17, 0xab, 0x79,
-        0xa0, 0xfc, 0xae, 0x41, 0x2a, 0xe3, 0x31, 0x6b,
-        0x77, 0xac, 0x00, 0x00, 0x00, 0x00
-    };
-    
-    data1->length=204;
-    data1->data=&transaction1;
-    data2->length=134;
-    data2->data=&transaction2;
-    data3->length=134;
-    data3->data=&transaction3;
-    
-    MerkleTreeHashNode* node1=malloc(sizeof(MerkleTreeHashNode));
-    node1->left=NULL;
-    node1->right=NULL;
-    node1->data=data1;
-    
-    MerkleTreeHashNode* node2=malloc(sizeof(MerkleTreeHashNode));
-    node2->left=NULL;
-    node2->right=NULL;
-    node2->data=data2;
-    
-    MerkleTreeHashNode* node3=malloc(sizeof(MerkleTreeHashNode));
-    node3->left=NULL;
-    node3->right=NULL;
-    node3->data=data3;
-    
-    MerkleTreeHashNode* node12=malloc(sizeof(MerkleTreeHashNode));
-    node12->left=node1;
-    node12->right=node2;
-    node12->data=NULL;
-    
-    MerkleTreeHashNode* node34=malloc(sizeof(MerkleTreeHashNode));
-    node34->left=node3;
-    node34->right=NULL;
-    node34->data=NULL;
-    
-    MerkleTreeHashNode* node1234=malloc(sizeof(MerkleTreeHashNode));
-    node1234->left=node12;
-    node1234->right=node34;
-    node1234->data=NULL;
-    
-    BitcoinBlock block;
-    block.merkle_tree=node1234;
-    
-    update_merkle_root(&block);
-    
-    debug_print_hex_line(&(block.header.merkle_root), 32);
-    // should be:
-    // 6A9CC4EACE6C3F1EF9A5278FB66633CE3973492107F134F60FD551E48C9A948A
-    
-    block.header.version=4;
-    memset(&(block.header.previous_block_hash), 0, 32);
-    block.header.timestamp=time(NULL);
-    block.header.difficulty=difficulty;
-    block.header.nonce=0;
-    
-    for(int i=0; i<2147483647; i++){
-        block.header.nonce=i;
-        if(is_good_block(&(block.header), &target)){
-            printf("Nonce found: %d\n", i);
+#define NUM_PROCESSES 5
+
+// for multiprocessing
+// mines a single header
+// @params
+//  *block: pointer to a block to be mined
+//  *target: pointer to a expanded target
+// @return
+//  void
+void mine_single_block(BitcoinHeader* block, const char* target){
+    int i=0;
+    for(; i<=2147483647; i++){
+        block->nonce=i;
+        if(is_good_block(block, target)){
+            printf("CHILD PROCESS: nonce found %d\n", i);
             break;
         }
     }
+}
+
+void sig_hand(int sig){
+    printf("%d> signal %d received -- terminating gracefully\n", getpid(), sig);
+    exit(0);
+}
+
+
+int main(){
+    // seed the random number generator
+    srand(time(NULL));
     
-    free(node1);
-    free(node2);
-    free(node3);
-    free(node12);
-    free(node34);
-    free(node1234);
+    // C warm up: brute force one block
+    int difficulty=DIFFICULTY_1M;
+    char target[32];
+    construct_target(difficulty, &target);
+    
+    /*BitcoinHeader block;
+    block.version=2;
+    get_random_hash(&(block.previous_block_hash));
+    get_random_hash(&(block.merkle_root));
+    block.timestamp=time(NULL);
+    block.difficulty=difficulty;
+    block.nonce=0;
+    
+    int i=0;
+    for(; i<=2147483647; i++){
+        block.nonce=i;
+        if(is_good_block(&block, &target)){
+            printf("nonce found: %d",i);
+            break;
+        }
+    }*/
+    
+    // Multiprocessing
+    /*int num_processes=5;
+    //BitcoinHeader blocks[num_processes]; // is this not kosher?
+    BitcoinHeader block;
+    get_random_header(&block, difficulty);
+    pid_t pid;
+    for(int fork_num=0; fork_num<num_processes; fork_num++){
+        get_random_header(&blocks[fork_num], difficulty);
+        pid=fork();
+        if(pid==0){
+            mine_single_block(&blocks[fork_num], &target);
+            exit(0);
+        }
+    }
+    
+    for(int fork_num=0; fork_num<num_processes; fork_num++){
+        wait(NULL);
+    }
     */
+    
+    // Multiprocessing with kills
+    
+    BitcoinHeader block;
+    get_random_header(&block, difficulty);
+    
+    // from an example code from my professor (no names for privacy)
+    // a set (in mathematical sense) of signals
+    sigset_t set;
+    // "what to do on actions" for later
+    struct sigaction sigact;
+    
+    // set the `set` to all signals
+    sigfillset(&set);
+    // block all signals, ... other than SIGSTOP and SIGKILL which can't be blocked
+    sigprocmask(SIG_SETMASK, &set, NULL);
+    // Perplexity AI (ChatGPT) says you shouldn't block signals for a long time...
+    
+    int i;
+    pid_t pid_father = getpid();
+    pid_t pid_child[NUM_PROCESSES];
+    pid_t first_finisher;
+    
+    for (i = 0; (i<NUM_PROCESSES)&&((pid_child[i]=fork())!=0); i++)
+        ;
+    // that's confusing for me tbh
+    // I'd write:
+    // for(i=0; i<num_processes; i++){
+    //     pid_child[i]=fork();
+    //     if(pid_child[i]==0) break;
+    // }
+    // does the code run faster or something if the fork is in the conditions?
+    
+    if (getpid() == pid_father){
+        
+        printf("P> waiting for child completion\n");
+        first_finisher=wait(NULL);
+        
+        
+        printf("P> Signalling all other children\n");
+        for (i = 0; i < NUM_PROCESSES; i++) {
+            if (pid_child[i] != first_finisher)
+                kill(pid_child[i],SIGUSR1);
+        }
+
+        printf("P> Checking all children have terminated\n");
+        for (i = 0; i < NUM_PROCESSES; i++) {
+            wait(0);
+        }
+        
+    } else {
+        // set the `sigact` var with... an action? didn't find docs yet
+        sigact.sa_handler = sig_hand;
+        sigact.sa_mask = set;
+        sigact.sa_flags = 0;
+        // change action on signal SIGUSR1 
+        sigaction(SIGUSR1,&sigact,0);
+        //                        ^
+        //                   ... shouldn't this be *oldact
+        //                   why does 0 work, is it NULL?
+        
+        // un-block SIGUSR1
+        sigdelset(&set,SIGUSR1);
+        sigprocmask(SIG_SETMASK, &set, NULL);
+        
+        //int v=compute();
+        //compute();
+        mine_single_block(&block, target);
+        
+        printf("%d> found a result!\n", getpid());
+        exit(0);
+    }
+    
     return 0;
     
 }
