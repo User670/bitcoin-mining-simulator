@@ -405,7 +405,15 @@ int deserialize_blockchain(BitcoinBlock* genesis, void* serialized_buf, int* err
     return read_bytes;
 }
 
-
+// Get a dummy genesis block, with the same data as the real Bitcoin genesis block.
+// The reason why this exists is to simplify things - initializing the chain with
+// a block means code don't need to deal with empty chains.
+// (Yes, the dummy block's header hash has zeros on the end, we're not gonna care
+// about endianness in this simulator)
+// params
+//  *block: an initialized block with a merkle hash node already allocated.
+// return
+//  void
 void get_dummy_genesis_block(BitcoinBlock* block){
     block->header.version=1;
     memset(block->header.previous_block_hash, 0, 32);
@@ -449,6 +457,38 @@ void get_dummy_genesis_block(BitcoinBlock* block){
     memcpy(data->data, _data, 204);
     block->merkle_tree->data=data;
     update_merkle_root(block);
+}
+
+void bytes_to_hex_string(void* bytes, int size, void* storage){
+    for(int i=0; i<size; i++){
+        sprintf(storage+i*2, "%02x", *(unsigned char*)(bytes+i));
+    }
+}
+
+int write_blockchain_to_file(int fd, int max_size, BitcoinBlock* block){
+    char* data=malloc(max_size);
+    int size=serialize_blockchain(block, max_size, data, NULL);
+    // write byte size metadata, because read() isn't aware of block structure,
+    // and needs a numerical number of bytes to write
+    // even if size is -1, still write it to indicate a bad blockchain
+    write(fd, &size, sizeof(int));
+    if(size!=-1){
+        write(fd, data, size);
+    }
+    free(data);
+    return size;
+}
+
+int read_blockchain_from_file(int fd, BitcoinBlock* block){
+    int size;
+    read(fd, &size, sizeof(int));
+    if(size<=0){
+        return -1;
+    }
+    char* data=malloc(size);
+    read(fd, data, size);
+    int rv=deserialize_blockchain(block, data, NULL);
+    return rv;
 }
 
 

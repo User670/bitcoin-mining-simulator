@@ -43,6 +43,22 @@ void sig_hand(int sig){
     exit(0);
 }
 
+void setup_signal_handler(struct sigaction sigact, sigset_t* set){
+    // set the `sigact` var with... an action? didn't find docs yet
+    sigact.sa_handler = sig_hand;
+    sigact.sa_mask = *set;
+    sigact.sa_flags = 0;
+    // change action on signal SIGUSR1 
+    sigaction(SIGUSR1,&sigact,0);
+    //                        ^
+    //                   ... shouldn't this be *oldact
+    //                   why does 0 work, is it NULL?
+    
+    // un-block SIGUSR1
+    sigdelset(set,SIGUSR1);
+    sigprocmask(SIG_SETMASK, set, NULL);
+}
+
 
 int main(){
     // seed the random number generator
@@ -140,19 +156,7 @@ int main(){
         }
         
     } else {
-        // set the `sigact` var with... an action? didn't find docs yet
-        sigact.sa_handler = sig_hand;
-        sigact.sa_mask = set;
-        sigact.sa_flags = 0;
-        // change action on signal SIGUSR1 
-        sigaction(SIGUSR1,&sigact,0);
-        //                        ^
-        //                   ... shouldn't this be *oldact
-        //                   why does 0 work, is it NULL?
-        
-        // un-block SIGUSR1
-        sigdelset(&set,SIGUSR1);
-        sigprocmask(SIG_SETMASK, &set, NULL);
+        setup_signal_handler(sigact, &set);
         
         //int v=compute();
         //compute();

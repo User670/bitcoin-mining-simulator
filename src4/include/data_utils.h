@@ -34,4 +34,10 @@ int deserialize_blockchain(BitcoinBlock* genesis, void* serialized_buf, int* err
 
 void get_dummy_genesis_block(BitcoinBlock* block);
 
+void bytes_to_hex_string(void* bytes, int size, void* storage);
+
+int write_blockchain_to_file(int fd, int max_size, BitcoinBlock* block);
+
+int read_blockchain_from_file(int fd, BitcoinBlock* block);
+
 #endif
