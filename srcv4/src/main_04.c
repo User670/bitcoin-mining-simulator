@@ -20,6 +20,8 @@
 #include <debug_utils.h>
 #include <custom_errors.h>
 
+#define CP(x) printf("Checkpoint %d\n",x);
+
 #define NUM_PROCESSES 5
 #define NUM_THREADS 5
 #define SHARED_BUF_CHAIN_SIZE 1048576 //1MB
@@ -154,6 +156,8 @@ void process_miner(int id, SharedData1* sd){
         if(sd->result_found){
             printf("CHILD %d: Some other process has a result.\n", id);
             // one, some other process got a result
+            // I guess nothing happens? just leave?
+            // edit post BitcoinBlockv3: nope, free()
             recursive_free_block(new_block);
         }else{
             // two, this process got a result
@@ -306,10 +310,13 @@ int main(){
         
         // wait for children to finish
         for(int fork_num=0; fork_num<NUM_PROCESSES; fork_num++){
+            // could have merged with previous loop but, eh, it's clearer
+            // this way
             sem_wait(job_end_sync_sem);
         }
         
         // we should now have a result we could print
+        // ... except we need to deserialize the chain to obtain said value
         recursive_free_blockchain(chain);
         chain=malloc(sizeof(BitcoinBlock));
         initialize_block(chain, 0);

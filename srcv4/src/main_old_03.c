@@ -11,8 +11,6 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <dirent.h>
-#include <sys/stat.h>
 
 #include <sha2.h>
 #include <bitcoin_utils.h>
@@ -20,20 +18,44 @@
 #include <debug_utils.h>
 #include <custom_errors.h>
 
+#define CP(x) printf("Checkpoint %d\n",x);
+
 #define NUM_PROCESSES 5
 #define NUM_THREADS 5
 #define SHARED_BUF_CHAIN_SIZE 1048576 //1MB
 #define SHARED_BUF_BLOCK_SIZE 32768   //32KB
 
 
-
 typedef struct{
     int result_found;
-    char chain_data[SHARED_BUF_CHAIN_SIZE];
-    char new_block_data[SHARED_BUF_BLOCK_SIZE];
+    BitcoinHeader block;
     char* target;
     int no_more_jobs;
 }SharedData1;
+
+
+// what do I need here?
+/*
+- the block itself
+  - need to copy it so that it doesn't mess up with other threads
+- a "this child has a result" signal
+- a "some child has a result" signal
+  - this one is a global shared memory location
+- a numerical ID for this thread to determine where to loop
+  - this is the only one unique to each thread in this process
+- a mutex so that the flag write is synced
+*/
+// what to do with sync?
+/*
+- finding a nonce raises "this child has a result" flag
+  - seeing this flag kicks all threads in this process
+- parent can either wait on pthread_join() until all threads die, ~~or wait on a
+  conditional to start a bit early~~
+  (no, conditionals won't fire for another process's result)
+- parent, after the wait, raises the "some child has a result" flag
+  - threads suicide when seeing this flag, allowing parent to proceed
+  - parent can see the flag to determine if it's their win or someone else's
+*/
 
 // global vars used by process thread miner get ptm_ prefix
 BitcoinHeader ptm_header;
@@ -76,7 +98,7 @@ void *thread_miner(void *_id){
     pthread_exit(NULL);
 }
 
-void process_miner(int id, SharedData1* sd){
+void process_thread_miner(int id, SharedData1* sd){
     printf("CHILD %d: spawned\n",id);
     // prepare semaphore references
     sem_t* issue_job_sync_sem=sem_open("/issuejob", O_RDWR);
@@ -84,9 +106,7 @@ void process_miner(int id, SharedData1* sd){
     sem_t* result_found_mutex=sem_open("/resultfound", O_RDWR);
     
     // prepare vars
-    BitcoinBlock* new_block=NULL;
-    BitcoinBlock* result_chain=NULL;
-    
+    //BitcoinHeader working_block;
     ptm_process_id=id;
     
     // setup global signal ptr
@@ -94,13 +114,6 @@ void process_miner(int id, SharedData1* sd){
     
     // setup mutex
     pthread_mutex_init(&ptm_flag_lock, NULL);
-    
-    // file
-    int fd_metadata;
-    int fd_blockchain;
-    char latest_chain_hex[70];
-    char latest_chain_filename[100];
-    char latest_block_hash[32];
     
     // main loop
     while(1){
@@ -114,12 +127,8 @@ void process_miner(int id, SharedData1* sd){
             break;
         }
         
-        //deserialize the data in shared mem
-        new_block=malloc(sizeof(BitcoinBlock));
-        initialize_block(new_block, 0);
-        deserialize_block(new_block, sd->new_block_data, NULL);
-        
-        ptm_header=new_block->header;
+        // setup job-specific var and reset flags
+        ptm_header=sd->block;
         ptm_target=sd->target;
         ptm_this_process_has_result=0;
         
@@ -154,63 +163,106 @@ void process_miner(int id, SharedData1* sd){
         if(sd->result_found){
             printf("CHILD %d: Some other process has a result.\n", id);
             // one, some other process got a result
-            recursive_free_block(new_block);
+            // I guess nothing happens? just leave?
         }else{
             // two, this process got a result
             sem_wait(result_found_mutex);
             // *actually* make sure no one beat me to it
             if(sd->result_found){
                 printf("CHILD %d: I found a nonce, but someone beat me to it in writing it to the shared memory.\n",id);
-                recursive_free_block(new_block);
             }else{
                 sd->result_found=1;
-                new_block->header.nonce=ptm_header.nonce;
-                // deserialize chain
-                result_chain=malloc(sizeof(BitcoinBlock));
-                initialize_block(result_chain,0);
-                deserialize_blockchain(result_chain, sd->chain_data, NULL);
-                // attach block
-                attach_block(result_chain, new_block);
-                // re-serialize block
-                serialize_blockchain(result_chain, SHARED_BUF_CHAIN_SIZE, sd->chain_data, NULL);
-                
-                obtain_last_block_hash(result_chain, latest_block_hash);
-                bytes_to_hex_string(latest_block_hash, 32, latest_chain_hex);
-                latest_chain_hex[64]='\0';
-                sprintf(latest_chain_filename, "./data/%s", latest_chain_hex);
-                fd_metadata=open("./data/latest.txt", O_RDWR|O_CREAT|O_TRUNC, 0666);
-                fd_blockchain=open(latest_chain_filename, O_RDWR|O_CREAT|O_TRUNC, 0666);
-                
-                write(fd_metadata, latest_chain_hex, 65);
-                write_blockchain_to_file(fd_blockchain, SHARED_BUF_CHAIN_SIZE, result_chain);
-                
-                close(fd_metadata);
-                close(fd_blockchain);
-                
-                recursive_free_blockchain(result_chain);
+                sd->block.nonce=ptm_header.nonce;
                 printf("CHILD %d: found a valid nonce %d\n", id, ptm_header.nonce);
             }
             sem_post(result_found_mutex);
         }
         
+        /*
+        // old thread miner stuff here
+        // make a copy of the block so that it doesn't mess with other processes
+        working_block=sd->block;
         
+        //printf("CHILD %d: I'm entering main loop\n",id);
+        for(int i=0; i<=2147483647; i++){
+            if(sd->result_found){
+                // could have merged the conditional in the loop, but
+                // 1, I don't like cramming conditions in the loop,
+                // 2, I can print stuff here this way
+                printf("CHILD %d: Someone found result; breaking at i=%d\n", id, i);
+                break;
+            }
+            working_block.nonce=i;
+            if(is_good_block(&working_block, sd->target)){
+                //printf("CHILD %d: I found a nonce, waiting for mutex\n", id);
+                sem_wait(result_found_mutex);
+                //printf("CHILD %d: I'm in the mutex\n", id);
+                // *actually* make sure no one beat me to it
+                if(sd->result_found){
+                    printf("CHILD %d: I found a nonce, but someone beat me to it in writing it to the shared memory.\n",id);
+                }else{
+                    sd->result_found=1;
+                    sd->block.nonce=i;
+                    printf("CHILD %d: found a valid nonce %d\n", id, i);
+                }
+                sem_post(result_found_mutex);
+                //printf("CHILD %d: I'm out of the mutex\n", id);
+                break;
+            }
+        }
         
+        */
         // tell parent that I'm done
         sem_post(job_end_sync_sem);
     }
+    
 }
 
 
 int main(){
-    
     // seed the random number generator
     srand(time(NULL));
     
     // C warm up: brute force one block
-    int difficulty=DIFFICULTY_1M;
+    int difficulty=0x1f03a30c;
     char target[32];
     construct_target(difficulty, &target);
     
+    /*BitcoinHeader block;
+    block.version=2;
+    get_random_hash(&(block.previous_block_hash));
+    get_random_hash(&(block.merkle_root));
+    block.timestamp=time(NULL);
+    block.difficulty=difficulty;
+    block.nonce=0;
+    
+    int i=0;
+    for(; i<=2147483647; i++){
+        block.nonce=i;
+        if(is_good_block(&block, &target)){
+            printf("nonce found: %d",i);
+            break;
+        }
+    }*/
+    
+    // Multiprocessing
+    /*
+    int num_processes=5;
+    BitcoinHeader blocks[num_processes]; // is this not kosher?
+    pid_t pid;
+    for(int fork_num=0; fork_num<num_processes; fork_num++){
+        get_random_header(&blocks[fork_num], difficulty);
+        pid=fork();
+        if(pid==0){
+            mine_single_block(&blocks[fork_num], &target);
+            exit(0);
+        }
+    }
+    
+    for(int fork_num=0; fork_num<num_processes; fork_num++){
+        wait(NULL);
+    }
+    */
     
     // synchronization, or an attempt of it
     int num_tasks=10; // so that no endless loop is made
@@ -221,82 +273,28 @@ int main(){
     SharedData1* sd=mmap(NULL, sizeof(SharedData1), PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
     sd->result_found=0;
     sd->no_more_jobs=0;
-    sd->target=target;
+    sd->target=&target;
     
-    //===Part04 begin===
-    
-    // detect whether folder "./data" exists, and if not, create it
-    DIR* dir = opendir("./data");
-    if(dir){
-        closedir(dir);
-    }else{
-        int rv=mkdir("./data",0666);
-        if(rv==-1){
-            perror("Error when creating directory");
-            exit(-1);
-        }else{
-            printf("Folder ./data does not exist, created.\n");
-        }
-    }
-    
-    // detect whether metadata file exists
-    int fd_metadata=open("./data/latest.txt", O_RDWR);
-    int fd_blockchain=-1; // initialize to -1 for later `if`
-    char latest_chain_hex[70]; //it's 64-long string +1 for the \0 terminator
-    char latest_chain_filename[100];
-    if(fd_metadata!=-1){
-        read(fd_metadata, latest_chain_hex, 64);
-        // add a \0 at the end so that it works as a string
-        latest_chain_hex[64]='\0';
-        sprintf(latest_chain_filename, "./data/%s", latest_chain_hex);
-        fd_blockchain=open(latest_chain_filename, O_RDWR);
-    }
-    
-    
-    // temporary vars
-    BitcoinBlock* new_block=NULL;
-    BitcoinBlock* chain=malloc(sizeof(BitcoinBlock));
-    initialize_block(chain,0);
-    
-    if(fd_blockchain!=-1){
-        read_blockchain_from_file(fd_blockchain, chain);
-    }else{
-        // create a dummy first block, so that children don't work with an empty chain
-        get_dummy_genesis_block(chain);
-    }
-    serialize_blockchain(chain, SHARED_BUF_CHAIN_SIZE, sd->chain_data, NULL);
-    
-    close(fd_metadata);
-    close(fd_blockchain);
+    //get_random_header(&(sd->block), &target);
     
     // prepare semaphores
     sem_t* issue_job_sync_sem=sem_open("/issuejob",O_CREAT|O_RDWR, 0666, 0);
     sem_t* job_end_sync_sem=sem_open("/jobend",O_CREAT|O_RDWR, 0666, 0);
-    /*sem_t* result_found_mutex=*/sem_open("/resultfound",O_CREAT|O_RDWR, 0666, 1);
+    sem_t* result_found_mutex=sem_open("/resultfound",O_CREAT|O_RDWR, 0666, 1);
     
     
     pid_t pid;
     for(int fork_num=0; fork_num<NUM_PROCESSES; fork_num++){
         pid=fork();
         if(pid==0){
-            process_miner(fork_num, sd);
+            process_thread_miner(fork_num, sd);
             exit(0);
         }
     }
     
     for(int task_num=0; task_num<num_tasks; task_num++){
         // prepare task
-        // on first loop, since new_block is NULL, this free does nothing
-        // otherwise, it frees the block from previous loop
-        recursive_free_block(new_block);
-        new_block=malloc(sizeof(BitcoinBlock));
-        initialize_block(new_block, difficulty);
-        randomize_block(new_block);
-        // the chain is either from before the loop, or end of previous loop
-        obtain_last_block_hash(chain, new_block->header.previous_block_hash);
-        
-        serialize_block(new_block, SHARED_BUF_BLOCK_SIZE, sd->new_block_data, NULL);
-        
+        get_random_header(&(sd->block), difficulty);
         sd->result_found=0;
         
         // release children
@@ -306,16 +304,15 @@ int main(){
         
         // wait for children to finish
         for(int fork_num=0; fork_num<NUM_PROCESSES; fork_num++){
+            // could have merged with previous loop but, eh, it's clearer
+            // this way
             sem_wait(job_end_sync_sem);
         }
         
         // we should now have a result we could print
-        recursive_free_blockchain(chain);
-        chain=malloc(sizeof(BitcoinBlock));
-        initialize_block(chain, 0);
-        deserialize_blockchain(chain, sd->chain_data, NULL);
-        printf("Parent: the last attached block has nonce %d\n", obtain_last_nonce(chain));
+        printf("PARENT: A result was found with nonce=%d\n",sd->block.nonce);
     }
+    
     sd->no_more_jobs=1;
     for(int fork_num=0; fork_num<NUM_PROCESSES; fork_num++){
         sem_post(issue_job_sync_sem);
@@ -324,10 +321,6 @@ int main(){
     for(int fork_num=0; fork_num<NUM_PROCESSES; fork_num++){
         wait(NULL);
     }
-    
-    shm_unlink("/issuejob");
-    shm_unlink("/jobend");
-    shm_unlink("/resultfound");
     
     return 0;
     

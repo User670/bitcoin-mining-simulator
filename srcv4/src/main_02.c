@@ -18,11 +18,15 @@
 #include <debug_utils.h>
 #include <custom_errors.h>
 
+#define CP(x) printf("Checkpoint %d\n",x);
+
 #define NUM_PROCESSES 5
-#define NUM_THREADS 5
 #define SHARED_BUF_CHAIN_SIZE 1048576 //1MB
 #define SHARED_BUF_BLOCK_SIZE 32768   //32KB
-
+// in reality, the randomizer gives a random of up to 29 transactions, each with
+// up to 511 bytes of data. This means one block is about max 15KB, and 1MB
+// can hold up to 60-70 max size blocks. Of course an average block would be
+// smaller.
 
 
 typedef struct{
@@ -33,47 +37,6 @@ typedef struct{
     int no_more_jobs;
 }SharedData1;
 
-// global vars used by process thread miner get ptm_ prefix
-BitcoinHeader ptm_header;
-char* ptm_target;
-int ptm_this_process_has_result;
-int* ptm_some_process_has_result;
-pthread_mutex_t ptm_flag_lock;
-// just for printing purposes...
-int ptm_process_id;
-
-void *thread_miner(void *_id){
-    BitcoinHeader block=ptm_header;
-    int id=*(int*)_id;
-    printf("THREAD %d-%d: Thread spawned\n", ptm_process_id, id);
-    int start=2147483647/NUM_THREADS*id;
-    int end= id==NUM_THREADS-1?2147483647:2147483647/NUM_THREADS*(id+1)-1;
-    for(int i=start; i<=end; i++){
-        if(ptm_this_process_has_result || *ptm_some_process_has_result){
-            printf("THREAD %d-%d: someone found result, breaking\n", ptm_process_id, id);
-            break;
-        }
-        block.nonce=i;
-        if(is_good_block(&block, ptm_target)){
-            pthread_mutex_lock(&ptm_flag_lock);
-            // also actually make sure no one beat me to it
-            if(ptm_this_process_has_result || *ptm_some_process_has_result){
-                printf("THREAD %d-%d: I found a result, but someone beat me to it\n", ptm_process_id, id);
-            }else{
-                ptm_this_process_has_result=1;
-                ptm_header.nonce=i;
-                printf("THREAD %d-%d: Found valid nonce %d\n", ptm_process_id, id, i);
-            }
-            pthread_mutex_unlock(&ptm_flag_lock);
-            break;
-        }
-        if(i==end){
-            printf("end of loop\n");
-        }
-    }
-    pthread_exit(NULL);
-}
-
 void process_miner(int id, SharedData1* sd){
     printf("CHILD %d: spawned\n",id);
     // prepare semaphore references
@@ -82,24 +45,18 @@ void process_miner(int id, SharedData1* sd){
     sem_t* result_found_mutex=sem_open("/resultfound", O_RDWR);
     
     // prepare vars
+    BitcoinHeader working_header;
     BitcoinBlock* new_block=NULL;
     BitcoinBlock* result_chain=NULL;
     
     int err;
     int rv; //return value
-    
-    ptm_process_id=id;
-    
-    // setup global signal ptr
-    ptm_some_process_has_result=&(sd->result_found);
-    
-    // setup mutex
-    pthread_mutex_init(&ptm_flag_lock, NULL);
-    
     // main loop
     while(1){
         // wait for parent to issue job and release lock
+        //printf("CHILD %d: I'm waiting for parent to release issuejob\n",id);
         sem_wait(issue_job_sync_sem);
+        //printf("CHILD %d: I'm released from issuejob\n",id);
         // check `sd` for no-more-jobs signal
         if(sd->no_more_jobs){
             printf("CHILD %d: No more job flag raised, breaking out of main loop\n", id);
@@ -113,69 +70,52 @@ void process_miner(int id, SharedData1* sd){
         if(rv==-1){
             perror_custom(err, NULL);
         }
+        working_header=new_block->header;
         
-        ptm_header=new_block->header;
-        ptm_target=sd->target;
-        ptm_this_process_has_result=0;
-        
-        // list of threads (I'm still unfamiliar lol)
-        pthread_t threads[NUM_THREADS];
-        int rc;
-        int ids[NUM_THREADS];
-        // spawn threads
-        for(int i=0; i<NUM_THREADS; i++){
-            // chatGPT
-            ids[i]=i;
-            rc = pthread_create(&threads[i], NULL, thread_miner, (void *)&(ids[i]));
-            if (rc) {
-                printf("Error creating thread %d\n", rc);
-                exit(-1);
-            }
-        }
-        
-        // wait on threads
-        // main thread doesn't seem to need to worry about killing other threads
-        // they will suicide on signal
-        for (int i=0; i<NUM_THREADS; i++) {
-            // also chatGPT
-            rc = pthread_join(threads[i], NULL);
-            if (rc) {
-                printf("Error joining thread %d\n", rc);
-                exit(-1);
-            }
-        }
-        
-        // all threads suicided, which means one of two things:
-        if(sd->result_found){
-            printf("CHILD %d: Some other process has a result.\n", id);
-            // one, some other process got a result
-            recursive_free_block(new_block);
-        }else{
-            // two, this process got a result
-            sem_wait(result_found_mutex);
-            // *actually* make sure no one beat me to it
+        //printf("CHILD %d: I'm entering main loop\n",id);
+        for(int i=0; i<2147483647; i++){
             if(sd->result_found){
-                printf("CHILD %d: I found a nonce, but someone beat me to it in writing it to the shared memory.\n",id);
+                // could have merged the conditional in the loop, but
+                // 1, I don't like cramming conditions in the loop,
+                // 2, I can print stuff here this way
+                printf("CHILD %d: Someone found result; breaking at i=%d\n", id, i);
                 recursive_free_block(new_block);
-            }else{
-                sd->result_found=1;
-                new_block->header.nonce=ptm_header.nonce;
-                // deserialize chain
-                result_chain=malloc(sizeof(BitcoinBlock));
-                initialize_block(result_chain,0);
-                deserialize_blockchain(result_chain, sd->chain_data, NULL);
-                // attach block
-                attach_block(result_chain, new_block);
-                // re-serialize block
-                serialize_blockchain(result_chain, SHARED_BUF_CHAIN_SIZE, sd->chain_data, &err);
-                
-                recursive_free_blockchain(result_chain);
-                printf("CHILD %d: found a valid nonce %d\n", id, ptm_header.nonce);
+                break;
             }
-            sem_post(result_found_mutex);
+            working_header.nonce=i;
+            if(is_good_block(&working_header, sd->target)){
+                sem_wait(result_found_mutex);
+                // *actually* make sure no one beat me to it
+                if(sd->result_found){
+                    printf("CHILD %d: I found a nonce, but someone beat me to it in writing it to the shared memory.\n",id);
+                    recursive_free_block(new_block);
+                }else{
+                    sd->result_found=1;
+                    new_block->header.nonce=i;
+                    // deserialize chain
+                    result_chain=malloc(sizeof(BitcoinBlock));
+                    initialize_block(result_chain,0);
+                    deserialize_blockchain(result_chain, sd->chain_data, NULL);
+                    // attach block
+                    attach_block(result_chain, new_block);
+                    // re-serialize block
+                    serialize_blockchain(result_chain, SHARED_BUF_CHAIN_SIZE, sd->chain_data, &err);
+                    
+                    recursive_free_blockchain(result_chain);
+                    printf("CHILD %d: found a valid nonce %d\n", id, i);
+                }
+                sem_post(result_found_mutex);
+                //printf("CHILD %d: I'm out of the mutex\n", id);
+                break;
+            }
         }
-        
-        
+        // cleanup
+        //recursive_free_block(new_block);
+        // new_block is, at this point, already a part of result_chain
+        // freeing both leads to a double free
+        // however, this isn't caught by the system and simply crashes the child,
+        // without any error info, and hangs the parent.
+        // There might need to be some changes here...
         
         // tell parent that I'm done
         sem_post(job_end_sync_sem);
@@ -262,6 +202,7 @@ int main(){
         }
         
         // we should now have a result we could print
+        // ... except we need to deserialize the chain to obtain said value
         recursive_free_blockchain(chain);
         chain=malloc(sizeof(BitcoinBlock));
         initialize_block(chain, 0);

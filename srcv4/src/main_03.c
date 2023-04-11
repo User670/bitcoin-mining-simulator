@@ -11,14 +11,14 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <dirent.h>
-#include <sys/stat.h>
 
 #include <sha2.h>
 #include <bitcoin_utils.h>
 #include <data_utils.h>
 #include <debug_utils.h>
 #include <custom_errors.h>
+
+#define CP(x) printf("Checkpoint %d\n",x);
 
 #define NUM_PROCESSES 5
 #define NUM_THREADS 5
@@ -87,6 +87,9 @@ void process_miner(int id, SharedData1* sd){
     BitcoinBlock* new_block=NULL;
     BitcoinBlock* result_chain=NULL;
     
+    int err;
+    int rv; //return value
+    
     ptm_process_id=id;
     
     // setup global signal ptr
@@ -94,13 +97,6 @@ void process_miner(int id, SharedData1* sd){
     
     // setup mutex
     pthread_mutex_init(&ptm_flag_lock, NULL);
-    
-    // file
-    int fd_metadata;
-    int fd_blockchain;
-    char latest_chain_hex[70];
-    char latest_chain_filename[100];
-    char latest_block_hash[32];
     
     // main loop
     while(1){
@@ -117,7 +113,10 @@ void process_miner(int id, SharedData1* sd){
         //deserialize the data in shared mem
         new_block=malloc(sizeof(BitcoinBlock));
         initialize_block(new_block, 0);
-        deserialize_block(new_block, sd->new_block_data, NULL);
+        rv=deserialize_block(new_block, sd->new_block_data, &err);
+        if(rv==-1){
+            perror_custom(err, NULL);
+        }
         
         ptm_header=new_block->header;
         ptm_target=sd->target;
@@ -154,6 +153,8 @@ void process_miner(int id, SharedData1* sd){
         if(sd->result_found){
             printf("CHILD %d: Some other process has a result.\n", id);
             // one, some other process got a result
+            // I guess nothing happens? just leave?
+            // edit post BitcoinBlockv3: nope, free()
             recursive_free_block(new_block);
         }else{
             // two, this process got a result
@@ -172,20 +173,7 @@ void process_miner(int id, SharedData1* sd){
                 // attach block
                 attach_block(result_chain, new_block);
                 // re-serialize block
-                serialize_blockchain(result_chain, SHARED_BUF_CHAIN_SIZE, sd->chain_data, NULL);
-                
-                obtain_last_block_hash(result_chain, latest_block_hash);
-                bytes_to_hex_string(latest_block_hash, 32, latest_chain_hex);
-                latest_chain_hex[64]='\0';
-                sprintf(latest_chain_filename, "./data/%s", latest_chain_hex);
-                fd_metadata=open("./data/latest.txt", O_RDWR|O_CREAT|O_TRUNC, 0666);
-                fd_blockchain=open(latest_chain_filename, O_RDWR|O_CREAT|O_TRUNC, 0666);
-                
-                write(fd_metadata, latest_chain_hex, 65);
-                write_blockchain_to_file(fd_blockchain, SHARED_BUF_CHAIN_SIZE, result_chain);
-                
-                close(fd_metadata);
-                close(fd_blockchain);
+                serialize_blockchain(result_chain, SHARED_BUF_CHAIN_SIZE, sd->chain_data, &err);
                 
                 recursive_free_blockchain(result_chain);
                 printf("CHILD %d: found a valid nonce %d\n", id, ptm_header.nonce);
@@ -223,51 +211,19 @@ int main(){
     sd->no_more_jobs=0;
     sd->target=target;
     
-    //===Part04 begin===
-    
-    // detect whether folder "./data" exists, and if not, create it
-    DIR* dir = opendir("./data");
-    if(dir){
-        closedir(dir);
-    }else{
-        int rv=mkdir("./data",0666);
-        if(rv==-1){
-            perror("Error when creating directory");
-            exit(-1);
-        }else{
-            printf("Folder ./data does not exist, created.\n");
-        }
-    }
-    
-    // detect whether metadata file exists
-    int fd_metadata=open("./data/latest.txt", O_RDWR);
-    int fd_blockchain=-1; // initialize to -1 for later `if`
-    char latest_chain_hex[70]; //it's 64-long string +1 for the \0 terminator
-    char latest_chain_filename[100];
-    if(fd_metadata!=-1){
-        read(fd_metadata, latest_chain_hex, 64);
-        // add a \0 at the end so that it works as a string
-        latest_chain_hex[64]='\0';
-        sprintf(latest_chain_filename, "./data/%s", latest_chain_hex);
-        fd_blockchain=open(latest_chain_filename, O_RDWR);
-    }
-    
-    
     // temporary vars
     BitcoinBlock* new_block=NULL;
-    BitcoinBlock* chain=malloc(sizeof(BitcoinBlock));
+    BitcoinBlock* chain;
+    
+    // create a dummy first block, so that children don't work with an empty chain
+    chain=malloc(sizeof(BitcoinBlock));
     initialize_block(chain,0);
-    
-    if(fd_blockchain!=-1){
-        read_blockchain_from_file(fd_blockchain, chain);
-    }else{
-        // create a dummy first block, so that children don't work with an empty chain
-        get_dummy_genesis_block(chain);
+    get_dummy_genesis_block(chain);
+    int err;
+    int rv=serialize_blockchain(chain, SHARED_BUF_CHAIN_SIZE, sd->chain_data, &err);
+    if(rv==-1){
+        perror_custom(err, NULL);
     }
-    serialize_blockchain(chain, SHARED_BUF_CHAIN_SIZE, sd->chain_data, NULL);
-    
-    close(fd_metadata);
-    close(fd_blockchain);
     
     // prepare semaphores
     sem_t* issue_job_sync_sem=sem_open("/issuejob",O_CREAT|O_RDWR, 0666, 0);
@@ -306,10 +262,13 @@ int main(){
         
         // wait for children to finish
         for(int fork_num=0; fork_num<NUM_PROCESSES; fork_num++){
+            // could have merged with previous loop but, eh, it's clearer
+            // this way
             sem_wait(job_end_sync_sem);
         }
         
         // we should now have a result we could print
+        // ... except we need to deserialize the chain to obtain said value
         recursive_free_blockchain(chain);
         chain=malloc(sizeof(BitcoinBlock));
         initialize_block(chain, 0);
