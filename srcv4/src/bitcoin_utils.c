@@ -366,6 +366,7 @@ void initialize_block(BitcoinBlock* block, int difficulty){
     initialize_hash_node(block->merkle_tree);
 }
 
+
 // Attach a block to a blockchain, by assigning this block's prev block pointer
 // and the chain's old last block's next block pointer.
 // params
@@ -380,6 +381,55 @@ void attach_block(BitcoinBlock* genesis, BitcoinBlock* new_block){
     }
     n->next_block=new_block;
     new_block->previous_block=n;
+}
+
+void initialize_block_v4(BitcoinBlockv4* block, int difficulty){
+    // There aren't pointers that might or might not be null this time...
+    // but length still have to be wiped at the very least
+    memset(block, 0, sizeof(BitcoinBlockv4));
+    // should be clean now lol
+    block->header.version=4;
+    block->header.difficulty=difficulty;
+    block->header.timestamp=time(NULL);
+}
+
+void set_data_node_v4(BitcoinBlockv4* block, int index, int length, char* data){
+    block->merkle_tree[index].length=length;
+    memcpy(
+        block->merkle_tree[index].data,
+        data,
+        length
+    );
+}
+
+void add_data_node_v4(BitcoinBlockv4* block, int length, char* data){
+    set_data_node_v4(block, block->tree_length, length, data);
+    block->tree_length++;
+}
+
+void update_merkle_root_v4(BitcoinBlockv4* block){
+    char d[30][32];
+    int this_layer_length=block->tree_length;
+    int length_is_odd=this_layer_length%2;
+    int next_layer_length=this_layer_length/2+length_is_odd;
+    for(int i=0; i<this_layer_length; i++){
+        dsha(block->merkle_tree[i].data, block->merkle_tree[i].length, d[i]);
+    }
+    
+    while(this_layer_length>1){
+        for(int i=0; i<next_layer_length; i++){
+            if(i==next_layer_length-1 && length_is_odd){
+                merkle_hash(d[2*i],d[2*i],d[i]);
+            }else{
+                merkle_hash(d[2*i],d[2*i+1],d[i]);
+            }
+        }
+        this_layer_length=next_layer_length;
+        length_is_odd=this_layer_length%2;
+        next_layer_length=this_layer_length/2+length_is_odd;
+    }
+    
+    memcpy(block->header.merkle_root, d[0], 32);
 }
 
 

@@ -40,4 +40,8 @@ int write_blockchain_to_file(int fd, int max_size, BitcoinBlock* block);
 
 int read_blockchain_from_file(int fd, BitcoinBlock* block);
 
+void randomize_transaction_v4(MerkleTreeNode* node);
+
+void randomize_block_transactions_v4(BitcoinBlockv4* block);
+
 #endif

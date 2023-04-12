@@ -459,7 +459,7 @@ void get_dummy_genesis_block(BitcoinBlock* block){
     update_merkle_root(block);
 }
 
-// Convert a byte array to hex string. This doesn't add the `\0` at the end.
+// Convert a byte array to hex string.
 // params
 //  *bytes: the bytes to convert.
 //  size: how many bytes to convert.
@@ -468,8 +468,10 @@ void get_dummy_genesis_block(BitcoinBlock* block){
 //  void
 void bytes_to_hex_string(void* bytes, int size, void* storage){
     for(int i=0; i<size; i++){
-        sprintf(storage+i*2, "%02x", *(unsigned char*)(bytes+i));
+        sprintf((char*)storage+i*2, "%02x", *(unsigned char*)(bytes+i));
     }
+    // add a \0
+    *(storage+size*2)=0;
 }
 
 // Write a blockchain to a file.
@@ -518,4 +520,21 @@ int read_blockchain_from_file(int fd, BitcoinBlock* block){
 }
 
 
+void randomize_transaction_v4(MerkleTreeNode* node){
+    // random integer between 128 and 511 - length of transaction
+    int length=rand()%384+128;
+    node->length=length;
+    for(int i=0; i<length; i++){
+        (node->data)[i]=(char)(rand()%256);
+    }
+}
 
+void randomize_block_transactions_v4(BitcoinBlockv4* block){
+    // random integer between 5 and 29 - # of transactions
+    int length=rand()%25+5;
+    block->tree_length=length;
+    for(int i=0; i<length; i++){
+        randomize_transaction_v4(&(block->merkle_tree[i]));
+    }
+    update_merkle_root_v4(block);
+}

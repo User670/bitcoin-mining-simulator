@@ -16,11 +16,13 @@ typedef struct BitcoinHeader{
     int nonce;
 } BitcoinHeader;
 
+// ######DEPRECATED
 typedef struct MerkleTreeDataNode{
     int length;
     char* data;
 }MerkleTreeDataNode;
 
+// ######DEPRECATED
 // `data` not NULL -> this node is a bottom layer node, `hash` holds hash of
 // the data stored in the data node
 // `data` NULL -> this node is not a bottom layer node, `hash` holds merkle
@@ -34,12 +36,28 @@ typedef struct MerkleTreeHashNode{
     struct MerkleTreeDataNode* data;
 } MerkleTreeHashNode;
 
+// ######DEPRECATED
 typedef struct BitcoinBlock{
     BitcoinHeader header;
     struct BitcoinBlock* previous_block;
     struct BitcoinBlock* next_block;
     MerkleTreeHashNode* merkle_tree;
 }BitcoinBlock;
+
+typedef struct{
+    int length;
+    char data[512];
+} MerkleTreeNode; // not to be confused with the other two
+
+typedef struct{
+    BitcoinHeader header;
+    // name of the shared memory that holds the previous/next block
+    // ideally should make them null-terminated strings...
+    char previous_block[100];
+    char next_block[100];
+    int tree_length;
+    MerkleTreeNode merkle_tree[30];
+}BitcoinBlockv4;
 
 void dsha(void* message, unsigned int len, void* digest);
 
@@ -78,5 +96,13 @@ void recursive_free_blockchain(BitcoinBlock* block);
 void initialize_block(BitcoinBlock* block, int difficulty);
 
 void attach_block(BitcoinBlock* genesis, BitcoinBlock* new_block);
+
+void initialize_block_v4(BitcoinBlockv4* block, int difficulty);
+
+void set_data_node_v4(BitcoinBlockv4* block, int index, int length, char* data);
+
+void add_data_node_v4(BitcoinBlockv4* block, int length, char* data);
+
+void update_merkle_root_v4(BitcoinBlockv4* block);
 
 #endif
