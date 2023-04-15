@@ -44,7 +44,7 @@ pthread_mutex_t ptm_flag_lock;
 // just for printing purposes...
 int ptm_process_id;
 
-void *thread_miner(void *_id){
+void* thread_miner(void* _id){
     BitcoinHeader block=ptm_header;
     int id=*(int*)_id;
     printf("THREAD %d-%d: Thread spawned\n", ptm_process_id, id);

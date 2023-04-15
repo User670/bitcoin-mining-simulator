@@ -23,23 +23,23 @@
 // for multiprocessing
 // mines a single header
 // @params
-//  *block: pointer to a block to be mined
+//  header: header of the block to be mined
 //  *target: pointer to a expanded target
 // @return
 //  void
-void mine_single_block(BitcoinHeader* block, const char* target){
+void mine_single_block(BitcoinHeader header, const char* target){
     int i=0;
     for(; i<=2147483647; i++){
-        block->nonce=i;
-        if(is_good_block(block, target)){
-            printf("CHILD PROCESS: nonce found %d\n", i);
+        header.nonce=i;
+        if(is_good_block(&header, target)){
+            printf("mine_single_block: nonce found %d\n", i);
             break;
         }
     }
 }
 
 void sig_hand(int sig){
-    printf("%d> signal %d received -- terminating gracefully\n", getpid(), sig);
+    printf("Child with PID %d: signal %d received - terminating gracefully\n", getpid(), sig);
     exit(0);
 }
 
@@ -108,8 +108,8 @@ int main(){
     
     // Multiprocessing with kills
     
-    BitcoinHeader block;
-    get_random_header(&block, difficulty);
+    BitcoinBlock block;
+    randomize_block_transactions(&block);
     
     // from an example code from my professor (no names for privacy)
     // a set (in mathematical sense) of signals
@@ -140,17 +140,17 @@ int main(){
     
     if (getpid() == pid_father){
         
-        printf("P> waiting for child completion\n");
+        printf("Parent: waiting for child completion\n");
         first_finisher=wait(NULL);
         
         
-        printf("P> Signalling all other children\n");
+        printf("Parent: Signalling all other children\n");
         for (i = 0; i < NUM_PROCESSES; i++) {
             if (pid_child[i] != first_finisher)
                 kill(pid_child[i],SIGUSR1);
         }
 
-        printf("P> Checking all children have terminated\n");
+        printf("Parent: Checking all children have terminated\n");
         for (i = 0; i < NUM_PROCESSES; i++) {
             wait(0);
         }
@@ -160,9 +160,9 @@ int main(){
         
         //int v=compute();
         //compute();
-        mine_single_block(&block, target);
+        mine_single_block(block.header, target);
         
-        printf("%d> found a result!\n", getpid());
+        printf("Child process with PID %d: found a result!\n", getpid());
         exit(0);
     }
     

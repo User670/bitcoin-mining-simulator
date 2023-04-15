@@ -12,6 +12,8 @@
 
 #include <sha2.h>
 #include <bitcoin_utils.h>
+#include <data_utils.h>
+#include <custom_errors.h>
 
 // requires `sha2.c`, `sha2.h`
 // computes double SHA - that is, SHA twice - for a given piece of input.
@@ -78,7 +80,7 @@ void merkle_hash(void* a, void* b, void* digest){
     dsha(s, 64, digest);
 }
 
-// calculate merkle root and copy it to the header
+/* // calculate merkle root and copy it to the header
 // params
 //  *block: pointer to a block
 // return
@@ -122,16 +124,7 @@ void calculate_merkle_root_top_down(MerkleTreeHashNode* node){
 }
 
 
-/*
-TODO for bitcoin and merkle tree structure:
 
-- construct from a list of transactions
-- construct from random transactions
-- add a transaction
-
-- recursively free memory used by a block
-- recursively free memory used by a blockchain?
-*/
 
 // count how many transactions are in a merkle tree
 // assumes tree is valid - specifically, a node with a data node doesn't have
@@ -381,19 +374,19 @@ void attach_block(BitcoinBlock* genesis, BitcoinBlock* new_block){
     }
     n->next_block=new_block;
     new_block->previous_block=n;
-}
+} */
 
-void initialize_block_v4(BitcoinBlockv4* block, int difficulty){
+void initialize_block(BitcoinBlock* block, int difficulty){
     // There aren't pointers that might or might not be null this time...
     // but length still have to be wiped at the very least
-    memset(block, 0, sizeof(BitcoinBlockv4));
+    memset(block, 0, sizeof(BitcoinBlock));
     // should be clean now lol
     block->header.version=4;
     block->header.difficulty=difficulty;
     block->header.timestamp=time(NULL);
 }
 
-void set_data_node_v4(BitcoinBlockv4* block, int index, int length, char* data){
+void set_data_node(BitcoinBlock* block, int index, int length, char* data){
     block->merkle_tree[index].length=length;
     memcpy(
         block->merkle_tree[index].data,
@@ -402,12 +395,12 @@ void set_data_node_v4(BitcoinBlockv4* block, int index, int length, char* data){
     );
 }
 
-void add_data_node_v4(BitcoinBlockv4* block, int length, char* data){
-    set_data_node_v4(block, block->tree_length, length, data);
+void add_data_node(BitcoinBlock* block, int length, char* data){
+    set_data_node(block, block->tree_length, length, data);
     block->tree_length++;
 }
 
-void update_merkle_root_v4(BitcoinBlockv4* block){
+void update_merkle_root(BitcoinBlock* block){
     char d[30][32];
     int this_layer_length=block->tree_length;
     int length_is_odd=this_layer_length%2;
@@ -430,6 +423,252 @@ void update_merkle_root_v4(BitcoinBlockv4* block){
     }
     
     memcpy(block->header.merkle_root, d[0], 32);
+}
+
+// Get a block's info based on its name.
+// It's slightly hard to use, so it's recommended to use a wrapper for this
+// function.
+// params
+//  *name: name of the shared memory for this block.
+//  *next_block_name_storage: if not NULL, copy the next block's name here.
+//  *block_hash_storage: if not NULL, copy this block's header hash here.
+//  *block_storage: if not NULL, copy the entire block here. Note that this copy
+//        is not mapped from the shared memory, so modifying its value does not
+//        affect the shared memory.
+// return
+//  On success, return 0.
+//  On error, return a negative number, representing the error's type:
+//  E_CUSTOM_NAMETOOLONG: The provided name exceeds 99 characters long.
+//  E_CUSTOM_INVALIDSHMNAME: The provided name isn't in the correct format.
+//  E_CUSTOM_SHMOPEN: An error occurred in a shm_open() call; check errno.
+//  E_CUSTOM_MMAP: An error occurred in a mmap() call; check errno.
+//  
+int get_block_info(char* name, char* next_block_name_storage, char* block_hash_storage, BitcoinBlock* block_storage){
+    if(strnlen(name,100)>99){
+        return E_CUSTOM_NAMETOOLONG;
+    }
+    if(!is_valid_block_shm_name(name)){
+        return E_CUSTOM_INVALIDSHMNAME;
+    }
+    int fd;
+    BitcoinBlock* block;
+    
+    fd=shm_open(name, O_RDWR, 0666);
+    if(fd==-1){
+        return E_CUSTOM_SHMOPEN;
+    }
+    block=mmap(NULL, sizeof(BitcoinBlock), PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+    if(block==MAP_FAILED){
+        return E_CUSTOM_MMAP;
+    }
+    if(next_block_name_storage!=NULL){
+        strncpy(next_block_name_storage, block->next_block, 100);
+    }
+    if(block_hash_storage!=NULL){
+        dsha(&(block->header), sizeof(BitcoinHeader), block_hash_storage);
+    }
+    if(block_storage!=NULL){
+        memcpy(block_storage, block, sizeof(BitcoinBlock));
+    }
+    close(fd);
+    //shm_unlink(name);
+    munmap(block, sizeof(BitcoinBlock));
+    return 0;
+}
+
+int get_next_block_name(char* name, char* next_name){
+    return get_block_info(name, next_name, NULL, NULL);
+}
+
+int get_block_hash(char* name, char* digest){
+    return get_block_info(name, NULL, digest, NULL);
+}
+
+int get_block_data(char* name, BitcoinBlock* block){
+    return get_block_info(name, NULL, NULL, block);
+}
+
+int get_blockchain_info(char* genesis, char* last_block_name_storage, char* last_block_hash_storage, BitcoinBlock* last_block_storage){
+    if(strnlen(genesis,100)>99){
+        return E_CUSTOM_NAMETOOLONG;
+    }
+    if(!is_valid_block_shm_name(genesis)){
+        return E_CUSTOM_INVALIDSHMNAME;
+    }
+    int fd;
+    BitcoinBlock* block;
+    char name[100];
+    char name2[100];
+    strcpy(name, genesis);
+    int count=0;
+    while(1){
+        fd=shm_open(name, O_RDWR, 0666);
+        if(fd==-1){
+            return E_CUSTOM_SHMOPEN;
+        }
+        block=mmap(NULL, sizeof(BitcoinBlock), PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+        if(block==MAP_FAILED){
+            return E_CUSTOM_MMAP;
+        }
+        count++;
+        if(block->next_block[0]==0){
+            // no next block
+            break;
+        }
+        if(strnlen(block->next_block, 100)>99){
+            return E_CUSTOM_NAMETOOLONG;
+        }
+        if(!is_valid_block_shm_name(block->next_block)){
+            return E_CUSTOM_INVALIDSHMNAME;
+        }
+        strcpy(name2, block->next_block);
+        close(fd);
+        //shm_unlink(name);
+        munmap(block, sizeof(BitcoinBlock));
+        strcpy(name, name2);
+    }
+    if(last_block_name_storage!=NULL){
+        strcpy(last_block_name_storage, name);
+    }
+    if(last_block_hash_storage!=NULL){
+        dsha(&(block->header), sizeof(BitcoinHeader), last_block_hash_storage);
+    }
+    if(last_block_storage!=NULL){
+        memcpy(last_block_storage, block, sizeof(BitcoinBlock));
+    }
+    close(fd);
+    //shm_unlink(name);
+    munmap(block, sizeof(BitcoinBlock));
+    return count;
+}
+
+int get_blockchain_length(char* name){
+    return get_blockchain_info(name, NULL, NULL, NULL);
+}
+
+int get_last_block_name(char* name, char* last_name){
+    return get_blockchain_info(name, last_name, NULL, NULL);
+}
+
+int get_last_block_hash(char* name, char* digest){
+    return get_blockchain_info(name, NULL, digest, NULL);
+}
+
+int get_last_block_data(char* name, BitcoinBlock* block){
+    return get_blockchain_info(name, NULL, NULL, block);
+}
+
+int attach_block(char* genesis, BitcoinBlock* new_block, char* new_block_name_storage){
+    if(strnlen(genesis, 100)>99){
+        return E_CUSTOM_NAMETOOLONG;
+    }
+    if(!is_valid_block_shm_name(genesis)){
+        return E_CUSTOM_INVALIDSHMNAME;
+    }
+    char last_name[100];
+    BitcoinBlock last_block;
+    int rv;
+    rv=get_blockchain_info(genesis, last_name, NULL, &last_block);
+    if(rv<0){
+        return rv;
+    }
+    if(!is_valid_block_shm_name(last_name)){
+        return E_CUSTOM_INVALIDSHMNAME;
+    }
+    char new_block_hash[32];
+    char new_block_name[100];
+    dsha(&(new_block->header), sizeof(BitcoinHeader), new_block_hash);
+    construct_shm_name(new_block_hash, new_block_name);
+    
+    strcpy(last_block.next_block, new_block_name);
+    strcpy(new_block->previous_block, last_name);
+    strcpy(new_block_name_storage, new_block_name);
+    
+    int fd;
+    BitcoinBlock* block;
+    
+    fd=shm_open(last_name, O_RDWR, 0666);
+    if(fd==-1){
+        return E_CUSTOM_SHMOPEN;
+    }
+    block=mmap(NULL, sizeof(BitcoinBlock), PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+    if(block==MAP_FAILED){
+        return E_CUSTOM_MMAP;
+    }
+    memcpy(block, &last_block, sizeof(BitcoinBlock));
+    close(fd);
+    //shm_unlink(last_name);
+    munmap(block, sizeof(BitcoinBlock));
+    return 0;
+}
+
+int unlink_shared_memories(char* name, char* name_failure){
+    if(strnlen(name, 100)>99){
+        return E_CUSTOM_NAMETOOLONG;
+    }
+    if(!is_valid_block_shm_name(name)){
+        return E_CUSTOM_INVALIDSHMNAME;
+    }
+    char name1[100];
+    char name2[100];
+    char name3[100];
+    int rv;
+    strcpy(name1, name);
+    // copying this pre-error so that I can immediately return without
+    // potentially updating errno
+    strcpy(name_failure, name1);
+    rv=get_next_block_name(name1, name2);
+    if(rv<0)return rv;
+    if(name2[0]==0){
+        // there is no second block
+        shm_unlink(name1);
+        return 0;
+    }
+    // there is supposedly a second block, but name1 can't be unlinked yet
+    // has to verify name2 is actually a valid block
+    while(1){
+        rv=get_next_block_name(name2, name3);
+        // N.B. if it fails here, it's either name2's fault or name2's shm's fault
+        // it's definitely not name3's fault
+        if(rv<0)return rv;
+        // So name2 is good, unlinking name1
+        shm_unlink(name1);
+        if(name3[0]==0){
+            // there is no name3, name2 is last block, unlink it
+            shm_unlink(name2);
+            return 0;
+        }
+        strcpy(name1, name2);
+        strncpy(name2, name3, 100);
+        strcpy(name_failure, name1);
+    }
+}
+
+
+int write_block_in_shm(char* name, BitcoinBlock* block){
+    if(strnlen(name, 100)>99){
+        return E_CUSTOM_NAMETOOLONG;
+    }
+    if(!is_valid_block_shm_name(name)){
+        return E_CUSTOM_INVALIDSHMNAME;
+    }
+    int fd=shm_open(name, O_CREAT|O_RDWR, 0666);
+    if(fd==-1){
+        return E_CUSTOM_SHMOPEN;
+    }
+    int rv=ftruncate(fd, sizeof(BitcoinBlock));
+    if(rv==-1){
+        return E_CUSTOM_FTRUNCATE;
+    }
+    BitcoinBlock* b=mmap(NULL, sizeof(BitcoinBlock), PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+    if(b==MAP_FAILED){
+        return E_CUSTOM_MMAP;
+    }
+    memcpy(b, block, sizeof(BitcoinBlock));
+    
+    close(fd);
+    munmap(b, sizeof(BitcoinBlock));
+    return 0;
 }
 
 

@@ -8,7 +8,7 @@ void get_random_header(BitcoinHeader* header, int difficulty);
 
 void get_random_continuation_header(BitcoinHeader* header, void* prev_blk_hash, int difficulty);
 
-void get_random_transaction(MerkleTreeDataNode* node);
+/* void get_random_transaction(MerkleTreeDataNode* node);
 
 void randomize_block(BitcoinBlock* block);
 
@@ -32,16 +32,22 @@ int deserialize_block(BitcoinBlock* block, void* serialized_buf, int* err);
 
 int deserialize_blockchain(BitcoinBlock* genesis, void* serialized_buf, int* err);
 
-void get_dummy_genesis_block(BitcoinBlock* block);
+void get_dummy_genesis_block(BitcoinBlock* block); */
 
 void bytes_to_hex_string(void* bytes, int size, void* storage);
 
-int write_blockchain_to_file(int fd, int max_size, BitcoinBlock* block);
+/* int write_blockchain_to_file(int fd, int max_size, BitcoinBlock* block);
 
-int read_blockchain_from_file(int fd, BitcoinBlock* block);
+int read_blockchain_from_file(int fd, BitcoinBlock* block); */
 
-void randomize_transaction_v4(MerkleTreeNode* node);
+void randomize_transaction(MerkleTreeNode* node);
 
-void randomize_block_transactions_v4(BitcoinBlockv4* block);
+void randomize_block_transactions(BitcoinBlock* block);
+
+void get_dummy_genesis_block(BitcoinBlock* block);
+
+int is_valid_block_shm_name(char* name);
+
+void construct_shm_name(char* hash, char* buf);
 
 #endif

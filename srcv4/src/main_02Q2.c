@@ -10,22 +10,22 @@
 #include <inttypes.h>
 #include <signal.h>
 #include <fcntl.h>
+#include <errno.h>
 
 #include <sha2.h>
 #include <bitcoin_utils.h>
 #include <data_utils.h>
 #include <debug_utils.h>
+#include <custom_errors.h>
 
 #define NUM_PROCESSES 5
 #define MAX_BLOCKCHAIN_HEIGHT 10
 
-#define SHARED_BUF_CHAIN_SIZE 1048576 //1MB
-#define SHARED_BUF_BLOCK_SIZE 32768   //32KB
 
 typedef struct{
     int chain_height;
-    char chain_data[SHARED_BUF_CHAIN_SIZE];
-    char new_block_data[SHARED_BUF_BLOCK_SIZE];
+    BitcoinBlock new_block;
+    char genesis_block_name[100];
 }SharedData1;
 
 
@@ -62,18 +62,35 @@ int main(){
     sigaction(SIGINT,&sigact,0);
     
     // synchronization, or an attempt of it
+    int rv;
     
     // prepare shared memory
     int fd;
     int is_first_create=0;
     fd=shm_open("/minechain", O_CREAT|O_EXCL|O_RDWR, 0666);
     if(fd==-1){
+        if(errno!=EEXIST){
+            perror("first shm_open for /minechain");
+            exit(1);
+        }
         fd=shm_open("/minechain", O_CREAT|O_RDWR, 0666);
+        if(fd==-1){
+            perror("second shm_open for /minechain");
+            exit(1);
+        }
     }else{
         is_first_create=1;
     }
-    ftruncate(fd, sizeof(SharedData1));
+    rv=ftruncate(fd, sizeof(SharedData1));
+    if(rv==-1){
+        perror("ftruncate for /minechain");
+        exit(1);
+    }
     SharedData1* sd=mmap(NULL, sizeof(SharedData1), PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+    if(sd==MAP_FAILED){
+        perror("mmap for /minechain");
+        exit(1);
+    }
     
     sem_t* start_sync_sem=sem_open("/minechainsync", O_CREAT|O_RDWR, 0666, 0);
     sem_t* chain_access_mutex=sem_open("/minechainmutex", O_CREAT|O_RDWR, 0666, 1);
@@ -85,18 +102,23 @@ int main(){
         sd->chain_height=0;
         
         BitcoinBlock* _genesis=malloc(sizeof(BitcoinBlock));
-        initialize_block(_genesis, 0);
         get_dummy_genesis_block(_genesis);
-        serialize_blockchain(_genesis, SHARED_BUF_CHAIN_SIZE, sd->chain_data, NULL);
+        char _hash[32];
+        char _name[100];
+        dsha(&(_genesis->header), sizeof(BitcoinHeader), _hash);
+        construct_shm_name(_hash, _name);
+        rv=write_block_in_shm(_name, _genesis);
+        if(rv<0){
+            perror_custom(rv, "write_block_in_shm for genesis");
+            exit(1);
+        }
+        strcpy(sd->genesis_block_name, _name);
         
-        BitcoinBlock* _first=malloc(sizeof(BitcoinBlock));
-        initialize_block(_first, difficulty);
-        randomize_block(_first);
-        obtain_last_block_hash(_genesis, _first->header.previous_block_hash);
-        serialize_block(_first, SHARED_BUF_BLOCK_SIZE, sd->new_block_data, NULL);
-        
-        recursive_free_block(_genesis);
-        recursive_free_block(_first);
+        BitcoinBlock* _new_block=malloc(sizeof(BitcoinBlock));
+        initialize_block(_new_block, difficulty);
+        memcpy(&(_new_block->header.previous_block_hash), _hash, 32);
+        randomize_block_transactions(_new_block);
+        memcpy(&(sd->new_block), _new_block, sizeof(BitcoinBlock));
         
         printf("Shared memory didn't already exist. Assumed this is the first instance, and opened shared memory.\n");
         printf("Open more instances from other terminal windows.\n");
@@ -131,7 +153,6 @@ int main(){
     int working_on_height;
     BitcoinHeader working_on_header;
     BitcoinBlock* new_block;
-    BitcoinBlock* result_chain;
     while(1){
         if(sd->chain_height==MAX_BLOCKCHAIN_HEIGHT){
             printf("Max chain height reached, breaking out of loop\n");
@@ -144,8 +165,7 @@ int main(){
         
         working_on_height=sd->chain_height;
         new_block=malloc(sizeof(BitcoinBlock));
-        initialize_block(new_block,difficulty);
-        deserialize_block(new_block, sd->new_block_data, NULL);
+        memcpy(new_block, &(sd->new_block), sizeof(BitcoinBlock));
         working_on_header=new_block->header;
         
         sem_post(chain_access_mutex);
@@ -155,7 +175,6 @@ int main(){
                 // someone added a block
                 // stop mining and work on new block
                 printf("A new block has been added, abandoning current block\n");
-                recursive_free_block(new_block);
                 break;
             }
             
@@ -164,31 +183,30 @@ int main(){
                 sem_wait(chain_access_mutex);
                 if(sd->chain_height != working_on_height){
                     printf("Found a valid nonce, but someone beat me to it\n");
-                    recursive_free_block(new_block);
                 }else{
                     printf("Found a valid nonce, storing to chain\n");
-                    result_chain=malloc(sizeof(BitcoinBlock));
-                    initialize_block(result_chain, 0);
-                    deserialize_blockchain(result_chain, sd->chain_data, NULL);
                     
                     new_block->header.nonce=i;
-                    attach_block(result_chain, new_block);
-                    
-                    serialize_blockchain(result_chain, SHARED_BUF_CHAIN_SIZE, sd->chain_data, NULL);
+                    char hash[32];
+                    dsha(&(new_block->header), sizeof(BitcoinBlock), hash);
+                    char name[100];
+                    rv=attach_block(sd->genesis_block_name, new_block, name);
+                    if(rv<0){
+                        perror_custom(rv, "main loop -> attach_block");
+                    }
+                    write_block_in_shm(name, new_block);
                     
                     sd->chain_height+=1;
                     // generate a new block for everyone to mine
                     // memory occupied by new_block is already in result_chain,
                     // and will be freed when I free the chain.
                     // safe to re-assign that reference.
+                    free(new_block);
                     new_block=malloc(sizeof(BitcoinBlock));
                     initialize_block(new_block, difficulty);
-                    randomize_block(new_block);
-                    obtain_last_block_hash(result_chain, new_block->header.previous_block_hash);
-                    serialize_block(new_block, SHARED_BUF_BLOCK_SIZE, sd->new_block_data, NULL);
-                    
-                    recursive_free_block(new_block);
-                    recursive_free_blockchain(result_chain);
+                    memcpy(&(new_block->header.previous_block_hash), hash, 32);
+                    randomize_block_transactions(new_block);
+                    memcpy(&(sd->new_block), new_block, sizeof(BitcoinBlock));
                     
                 }
                 sem_post(chain_access_mutex);
@@ -199,12 +217,20 @@ int main(){
     }
     
     if(is_first_create){
-        BitcoinBlock* _result=malloc(sizeof(BitcoinBlock));
-        initialize_block(_result,0);
-        deserialize_blockchain(_result, sd->chain_data, NULL);
-        while(_result!=NULL){
-            debug_print_header(_result->header);
-            _result=_result->next_block;
+        char name1[100];
+        char name2[100];
+        strcpy(name1,sd->genesis_block_name);
+        BitcoinBlock* block=malloc(sizeof(BitcoinBlock));
+        while(1){
+            rv=get_block_info(name1, name2, NULL, block);
+            if(rv<0){
+                perror_custom(rv,"get_block_info");
+                break;
+            }
+            printf("Header of block %s:\n",name1);
+            debug_print_header(block->header);
+            if(name2[0]==0)break;
+            strncpy(name1, name2, 100);
         }
         printf("The headers in the chain has been printed above.\n");
     }else{

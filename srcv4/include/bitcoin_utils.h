@@ -36,13 +36,13 @@ typedef struct MerkleTreeHashNode{
     struct MerkleTreeDataNode* data;
 } MerkleTreeHashNode;
 
-// ######DEPRECATED
+/* // ######DEPRECATED
 typedef struct BitcoinBlock{
     BitcoinHeader header;
     struct BitcoinBlock* previous_block;
     struct BitcoinBlock* next_block;
     MerkleTreeHashNode* merkle_tree;
-}BitcoinBlock;
+}BitcoinBlock; */
 
 typedef struct{
     int length;
@@ -57,7 +57,7 @@ typedef struct{
     char next_block[100];
     int tree_length;
     MerkleTreeNode merkle_tree[30];
-}BitcoinBlockv4;
+}BitcoinBlock;
 
 void dsha(void* message, unsigned int len, void* digest);
 
@@ -67,7 +67,7 @@ int is_good_block(BitcoinHeader* header, const char* target);
 
 void merkle_hash(void* a, void* b, void* digest);
 
-void update_merkle_root(BitcoinBlock* block);
+/* void update_merkle_root(BitcoinBlock* block);
 
 void calculate_merkle_root_top_down(MerkleTreeHashNode* node);
 
@@ -95,14 +95,38 @@ void recursive_free_blockchain(BitcoinBlock* block);
 
 void initialize_block(BitcoinBlock* block, int difficulty);
 
-void attach_block(BitcoinBlock* genesis, BitcoinBlock* new_block);
+void attach_block(BitcoinBlock* genesis, BitcoinBlock* new_block); */
 
-void initialize_block_v4(BitcoinBlockv4* block, int difficulty);
+void initialize_block(BitcoinBlock* block, int difficulty);
 
-void set_data_node_v4(BitcoinBlockv4* block, int index, int length, char* data);
+void set_data_node(BitcoinBlock* block, int index, int length, char* data);
 
-void add_data_node_v4(BitcoinBlockv4* block, int length, char* data);
+void add_data_node(BitcoinBlock* block, int length, char* data);
 
-void update_merkle_root_v4(BitcoinBlockv4* block);
+void update_merkle_root(BitcoinBlock* block);
+
+int get_block_info(char* name, char* next_block_name_storage, char* block_hash_storage, BitcoinBlock* block_storage);
+
+int get_next_block_name(char* name, char* next_name);
+
+int get_block_hash(char* name, char* digest);
+
+int get_block_data(char* name, BitcoinBlock* block);
+
+int get_blockchain_info(char* genesis, char* last_block_name_storage, char* last_block_hash_storage, BitcoinBlock* last_block_storage);
+
+int get_blockchain_length(char* name);
+
+int get_last_block_name(char* name, char* last_name);
+
+int get_last_block_hash(char* name, char* digest);
+
+int get_last_block_data(char* name, BitcoinBlock* block);
+
+int attach_block(char* genesis, BitcoinBlock* new_block, char* new_block_name_storage);
+
+int unlink_shared_memories(char* name, char* name_failure);
+
+int write_block_in_shm(char* name, BitcoinBlock* block);
 
 #endif

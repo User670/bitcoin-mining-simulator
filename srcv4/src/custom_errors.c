@@ -1,5 +1,7 @@
 #include <custom_errors.h>
 #include <stdio.h>
+#include <errno.h>
+#include <string.h>
 
 // Print an error message for a custom_errors error.
 // If prefix is not NULL and is not '\0' (empty string), print prefix followed by
@@ -16,27 +18,28 @@
 // return
 //  void
 void perror_custom(int errnum, char* prefix){
+    int errval=errno;
     if(prefix!=NULL && *prefix!='\0'){
         printf("%s: ",prefix);
     }
     switch(errnum){
-        case E_CUSTOM_NOMEM:
-            printf("No enough space in buffer\n");
+        case E_CUSTOM_GENERIC:
+            printf("Unspecified error\n");
             break;
-        case E_CUSTOM_BADTREE:
-            printf("Merkle tree malformatted\n");
+        case E_CUSTOM_NAMETOOLONG:
+            printf("Provided name too long\n");
             break;
-        case E_CUSTOM_BADDATALEN:
-            printf("Read zero or negative for data node length\n");
+        case E_CUSTOM_INVALIDSHMNAME:
+            printf("Shared memory name is not in the correct format\n");
             break;
-        case E_CUSTOM_BADTREELEN:
-            printf("Read zero or negative for merkle tree length\n");
+        case E_CUSTOM_SHMOPEN:
+            printf("%s (raised by shm_open)\n",strerror(errval));
             break;
-        case E_CUSTOM_EMPTYCHAIN:
-            printf("Blockchain is empty\n");
+        case E_CUSTOM_MMAP:
+            printf("%s (raised by mmap)\n",strerror(errval));
             break;
-        case E_CUSTOM_BADCHAINLEN:
-            printf("Read negative for blockchain length\n");
+        case E_CUSTOM_FTRUNCATE:
+            printf("%s (raised by ftruncate)\n",strerror(errval));
             break;
     }
 } 
