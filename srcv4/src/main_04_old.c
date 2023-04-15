@@ -20,15 +20,19 @@
 #include <debug_utils.h>
 #include <custom_errors.h>
 
+#define CP(x) printf("Checkpoint %d\n",x);
+
 #define NUM_PROCESSES 5
 #define NUM_THREADS 5
+#define SHARED_BUF_CHAIN_SIZE 1048576 //1MB
+#define SHARED_BUF_BLOCK_SIZE 32768   //32KB
 
 
 
 typedef struct{
     int result_found;
-    BitcoinBlock new_block;
-    char genesis_block_name[100];
+    char chain_data[SHARED_BUF_CHAIN_SIZE];
+    char new_block_data[SHARED_BUF_BLOCK_SIZE];
     char* target;
     int no_more_jobs;
 }SharedData1;
@@ -42,7 +46,7 @@ pthread_mutex_t ptm_flag_lock;
 // just for printing purposes...
 int ptm_process_id;
 
-void* thread_miner(void* _id){
+void *thread_miner(void *_id){
     BitcoinHeader block=ptm_header;
     int id=*(int*)_id;
     printf("THREAD %d-%d: Thread spawned\n", ptm_process_id, id);
@@ -82,10 +86,8 @@ void process_miner(int id, SharedData1* sd){
     sem_t* result_found_mutex=sem_open("/resultfound", O_RDWR);
     
     // prepare vars
-    BitcoinBlock working_block;
-    
-    char working_block_shm_name[100];
-    int rv; //return value
+    BitcoinBlock* new_block=NULL;
+    BitcoinBlock* result_chain=NULL;
     
     ptm_process_id=id;
     
@@ -94,6 +96,13 @@ void process_miner(int id, SharedData1* sd){
     
     // setup mutex
     pthread_mutex_init(&ptm_flag_lock, NULL);
+    
+    // file
+    int fd_metadata;
+    int fd_blockchain;
+    char latest_chain_hex[70];
+    char latest_chain_filename[100];
+    char latest_block_hash[32];
     
     // main loop
     while(1){
@@ -107,10 +116,12 @@ void process_miner(int id, SharedData1* sd){
             break;
         }
         
+        //deserialize the data in shared mem
+        new_block=malloc(sizeof(BitcoinBlock));
+        initialize_block(new_block, 0);
+        deserialize_block(new_block, sd->new_block_data, NULL);
         
-        working_block=sd->new_block;
-        
-        ptm_header=working_block.header;
+        ptm_header=new_block->header;
         ptm_target=sd->target;
         ptm_this_process_has_result=0;
         
@@ -147,26 +158,40 @@ void process_miner(int id, SharedData1* sd){
             // one, some other process got a result
             // I guess nothing happens? just leave?
             // edit post BitcoinBlockv3: nope, free()
+            recursive_free_block(new_block);
         }else{
             // two, this process got a result
             sem_wait(result_found_mutex);
             // *actually* make sure no one beat me to it
             if(sd->result_found){
                 printf("CHILD %d: I found a nonce, but someone beat me to it in writing it to the shared memory.\n",id);
+                recursive_free_block(new_block);
             }else{
                 sd->result_found=1;
-                working_block.header.nonce=ptm_header.nonce;
-                // okay v4 workflow
-                // first we do attach
-                rv=attach_block(sd->genesis_block_name, &working_block, working_block_shm_name);
-                if(rv<0){
-                    perror_custom(rv, "child process -> attach block");
-                }
-                // and we write the block to shm
-                rv=write_block_in_shm(working_block_shm_name, &working_block);
-                if(rv<0){
-                    perror_custom(rv, "child process -> write_block_in_shm");
-                }
+                new_block->header.nonce=ptm_header.nonce;
+                // deserialize chain
+                result_chain=malloc(sizeof(BitcoinBlock));
+                initialize_block(result_chain,0);
+                deserialize_blockchain(result_chain, sd->chain_data, NULL);
+                // attach block
+                attach_block(result_chain, new_block);
+                // re-serialize block
+                serialize_blockchain(result_chain, SHARED_BUF_CHAIN_SIZE, sd->chain_data, NULL);
+                
+                obtain_last_block_hash(result_chain, latest_block_hash);
+                bytes_to_hex_string(latest_block_hash, 32, latest_chain_hex);
+                latest_chain_hex[64]='\0';
+                sprintf(latest_chain_filename, "./data/%s", latest_chain_hex);
+                fd_metadata=open("./data/latest.txt", O_RDWR|O_CREAT|O_TRUNC, 0666);
+                fd_blockchain=open(latest_chain_filename, O_RDWR|O_CREAT|O_TRUNC, 0666);
+                
+                write(fd_metadata, latest_chain_hex, 65);
+                write_blockchain_to_file(fd_blockchain, SHARED_BUF_CHAIN_SIZE, result_chain);
+                
+                close(fd_metadata);
+                close(fd_blockchain);
+                
+                recursive_free_blockchain(result_chain);
                 printf("CHILD %d: found a valid nonce %d\n", id, ptm_header.nonce);
             }
             sem_post(result_found_mutex);
@@ -190,68 +215,68 @@ int main(){
     char target[32];
     construct_target(difficulty, &target);
     
-    int rv; // for receiving return values of certain functions to catch errors
     
     // synchronization, or an attempt of it
     int num_tasks=10; // so that no endless loop is made
     
     // prepare shared memory
     int fd=shm_open("/minejobs", O_CREAT|O_RDWR, 0666);
-    if(fd==-1){
-        perror("main -> shm_open for jobs");
-        exit(1);
-    }
-    rv=ftruncate(fd, sizeof(SharedData1));
-    if(rv==-1){
-        perror("main -> ftruncate for jobs");
-        exit(1);
-    }
+    ftruncate(fd, sizeof(SharedData1));
     SharedData1* sd=mmap(NULL, sizeof(SharedData1), PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
-    if(sd==MAP_FAILED){
-        perror("main -> mmap for jobs");
-        exit(1);
-    }
     sd->result_found=0;
     sd->no_more_jobs=0;
     sd->target=target;
     
+    //===Part04 begin===
     
-    // create a dummy first block, so that children don't work with an empty chain
-    BitcoinBlock* genesis_block=malloc(sizeof(BitcoinBlock));
-    get_dummy_genesis_block(genesis_block);
-
-    char genesis_hash[32];
-    dsha(&(genesis_block->header), sizeof(BitcoinHeader), genesis_hash);
-    char genesis_block_name[100];
-    construct_shm_name(genesis_hash, genesis_block_name);
-
-    rv=write_block_in_shm(genesis_block_name, genesis_block);
-    if(rv<0){
-        perror_custom(rv, "main -> write_block_in_shm for genesis");
-        exit(1);
+    // detect whether folder "./data" exists, and if not, create it
+    DIR* dir = opendir("./data");
+    if(dir){
+        closedir(dir);
+    }else{
+        int rv=mkdir("./data",0666);
+        if(rv==-1){
+            perror("Error when creating directory");
+            exit(-1);
+        }else{
+            printf("Folder ./data does not exist, created.\n");
+        }
     }
     
-    strcpy(sd->genesis_block_name, genesis_block_name);
+    // detect whether metadata file exists
+    int fd_metadata=open("./data/latest.txt", O_RDWR);
+    int fd_blockchain=-1; // initialize to -1 for later `if`
+    char latest_chain_hex[70]; //it's 64-long string +1 for the \0 terminator
+    char latest_chain_filename[100];
+    if(fd_metadata!=-1){
+        read(fd_metadata, latest_chain_hex, 64);
+        // add a \0 at the end so that it works as a string
+        latest_chain_hex[64]='\0';
+        sprintf(latest_chain_filename, "./data/%s", latest_chain_hex);
+        fd_blockchain=open(latest_chain_filename, O_RDWR);
+    }
+    
+    
+    // temporary vars
+    BitcoinBlock* new_block=NULL;
+    BitcoinBlock* chain=malloc(sizeof(BitcoinBlock));
+    initialize_block(chain,0);
+    
+    if(fd_blockchain!=-1){
+        read_blockchain_from_file(fd_blockchain, chain);
+    }else{
+        // create a dummy first block, so that children don't work with an empty chain
+        get_dummy_genesis_block(chain);
+    }
+    serialize_blockchain(chain, SHARED_BUF_CHAIN_SIZE, sd->chain_data, NULL);
+    
+    close(fd_metadata);
+    close(fd_blockchain);
     
     // prepare semaphores
     sem_t* issue_job_sync_sem=sem_open("/issuejob",O_CREAT|O_RDWR, 0666, 0);
-    if(issue_job_sync_sem==SEM_FAILED){
-        perror("main -> sem_open for /issuejob");
-        exit(1);
-    }
     sem_t* job_end_sync_sem=sem_open("/jobend",O_CREAT|O_RDWR, 0666, 0);
     /*sem_t* result_found_mutex=*/sem_open("/resultfound",O_CREAT|O_RDWR, 0666, 1);
-    if(job_end_sync_sem==SEM_FAILED){
-        perror("main -> sem_open for /jobend");
-        exit(1);
-    }
-    sem_t* result_found_mutex=sem_open("/resultfound",O_CREAT|O_RDWR, 0666, 1);
-    if(result_found_mutex==SEM_FAILED){
-        perror("main -> sem_open for /resultfound");
-        exit(1);
-    }
-
-    BitcoinBlock* new_block=malloc(sizeof(BitcoinBlock));
     
     
     pid_t pid;
@@ -265,15 +290,16 @@ int main(){
     
     for(int task_num=0; task_num<num_tasks; task_num++){
         // prepare task
+        // on first loop, since new_block is NULL, this free does nothing
+        // otherwise, it frees the block from previous loop
+        recursive_free_block(new_block);
+        new_block=malloc(sizeof(BitcoinBlock));
         initialize_block(new_block, difficulty);
-        randomize_block_transactions(new_block);
+        randomize_block(new_block);
         // the chain is either from before the loop, or end of previous loop
-        rv=get_last_block_hash(genesis_block_name, new_block->header.previous_block_hash);
-        if(rv<0){
-            perror_custom(rv, "main, main loop -> get_last_block_hash");
-        }
+        obtain_last_block_hash(chain, new_block->header.previous_block_hash);
         
-        memcpy(&(sd->new_block), new_block, sizeof(BitcoinBlock));
+        serialize_block(new_block, SHARED_BUF_BLOCK_SIZE, sd->new_block_data, NULL);
         
         sd->result_found=0;
         
@@ -291,11 +317,11 @@ int main(){
         
         // we should now have a result we could print
         // ... except we need to deserialize the chain to obtain said value
-        rv=get_last_block_data(genesis_block_name, new_block);
-        if(rv<0){
-            perror_custom(rv, "main, main loop -> get_last_block_data");
-        }
-        printf("Parent: the last attached block has nonce %d\n", new_block->header.nonce);
+        recursive_free_blockchain(chain);
+        chain=malloc(sizeof(BitcoinBlock));
+        initialize_block(chain, 0);
+        deserialize_blockchain(chain, sd->chain_data, NULL);
+        printf("Parent: the last attached block has nonce %d\n", obtain_last_nonce(chain));
     }
     sd->no_more_jobs=1;
     for(int fork_num=0; fork_num<NUM_PROCESSES; fork_num++){
@@ -306,20 +332,9 @@ int main(){
         wait(NULL);
     }
     
-    sem_unlink("/issuejob");
-    sem_unlink("/jobend");
-    sem_unlink("/resultfound");
-
-    close(fd);
-    shm_unlink("minejobs");
-    munmap(sd, sizeof(SharedData1));
-
-    char fail[100];
-    rv=unlink_shared_memories(genesis_block_name, fail);
-    if(rv<0){
-        perror_custom(rv, "main -> unlink_shared_memories");
-        printf("The first shared memory to have not successfullt been unlinked is %s\n", fail);
-    }
+    shm_unlink("/issuejob");
+    shm_unlink("/jobend");
+    shm_unlink("/resultfound");
     
     return 0;
     

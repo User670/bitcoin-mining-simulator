@@ -8,15 +8,17 @@
 #include <sys/mman.h>
 #include <string.h>
 #include <inttypes.h>
-#include <signal.h>
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <dirent.h>
+#include <sys/stat.h>
 
 #include <sha2.h>
 #include <bitcoin_utils.h>
 #include <data_utils.h>
 #include <debug_utils.h>
+#include <custom_errors.h>
 
 #define NUM_PROCESSES 5
 

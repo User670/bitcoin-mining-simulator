@@ -8,9 +8,11 @@
 #include <sys/mman.h>
 #include <string.h>
 #include <inttypes.h>
-#include <signal.h>
 #include <fcntl.h>
-#include <errno.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <dirent.h>
+#include <sys/stat.h>
 
 #include <sha2.h>
 #include <bitcoin_utils.h>

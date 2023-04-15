@@ -50,4 +50,8 @@ int is_valid_block_shm_name(char* name);
 
 void construct_shm_name(char* hash, char* buf);
 
+int write_blockchain_to_file(int fd, char* name);
+
+int read_blockchain_from_file(int fd, char* genesis_name_storage);
+
 #endif

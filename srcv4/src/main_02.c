@@ -11,14 +11,14 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <dirent.h>
+#include <sys/stat.h>
 
 #include <sha2.h>
 #include <bitcoin_utils.h>
 #include <data_utils.h>
 #include <debug_utils.h>
 #include <custom_errors.h>
-
-#define CP(x) printf("Checkpoint %d\n",x);
 
 #define NUM_PROCESSES 5
 
