@@ -1,9 +1,9 @@
-**due to moving some functions to \*_utils.c files, these steps are now outdated. Will re-do them when I have time.**
+Update:
 
-In each sub-folder of this folder, there are these sub-sub-folders:
+`old` had really old and outdated stuff.
 
-- `complete` - these contain source code directly copied from my working directory at various points in time. They contain all the comments I made, and potentially leftover debug code, or code from previous parts.
-- `cleanup` - these contain code that I cleaned up afterwards. Comments that help understand the code are kept, but random notes, commented-out code, etc. are removed.
-- `task` - my attempt at digging holes for students to fill.
+`full` has a full copy of the thing. It's also the solution to everything; just change corresponding source file to `main.c`. (Might go and do that myself. Especially because all the temporary/outdated/testing stuff.)
 
-Also, my attempts at writing a task prompt are in `task.md`.
+Other folders contain files for students. For parts 00, 01alt, 02, 02Q2, a template is given; for parts 03 and 04, students work off their code from the previous assignment, though instructor may provide the previous assignment's solution as a template on student's request, if the student did poorly or did not finish on the previous part.
+
+A set of instructions are also given in `readme.md` files. (For parts 03 and 04, the readme is the only thing in the folder.)
