@@ -1,3 +1,8 @@
+# This thing is outdated!
+# It was written for BitcoinBlockv3, which has to be serialized and deserialized using a convoluted process.
+# Current BitcoinBlockv4 takes a fixed amount of space (around 15KB; has space for 30 transactions,
+# each being up to 512 bytes).
+
 chain_length=int(input("max length of blockchain? > "))
 tree_size=int(input("max # of transactions per block? > "))
 transaction_length=int(input("max transaction length? > "))
