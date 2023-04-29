@@ -3,15 +3,12 @@ Here documents what I did from cleaned-up source code to templates.
 ## part01alt
 
 - Removed the for loop to create forks.
-
-```c
-    // TODO: write a loop to fork.
-    // Make sure to save the PID of each child.
-```
-
-- Removed the if's condition (replaced with `/* TODO: how can you tell who is the parent? */`).
+- Removed the if's condition.
 - Removed the parent part of the if - the child part, aka the else, was left intact.
 
-```c
-        // TODO: Parent: wait for one child, kill the rest, and wait for them.
-```
+
+## part02
+
+- Kept only `new_block`, `genesis_block_name` and `target` in SharedData; yanked the rest.
+- `process_miner`: removed semaphore part; removed most of the main loop logic other than the grab-bruteforce-write bits.
+- `main`: Removed the bit with the shared memory (but still left the `sd->target=target`), semaphores, the middle of the main loop, the part where it signals no more jobs, and cleaning up the semaphores and shms they made.

@@ -19,3 +19,7 @@ For notes on changes made in task templates, see `templates.md`.
 ## srcv4_cleanup -> part02
 
 `main_02.c`: at the end, `shm_unlink` unlinks the incorrect shared memory name (should have a slash). (That part is yanked for the student anyway...)
+
+Also, `simply` -> `simplify` (comment where I explained the dummy genesis block)
+
+Also need to `free` two pointers.

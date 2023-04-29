@@ -109,7 +109,7 @@ int main(){
     
     
     // This part creates a dummy genesis block, and writes it to its shared
-    // memory. This is to simply the children's job, as it avoids having to
+    // memory. This is to simplify the children's job, as it avoids having to
     // deal with an empty blockchain for the children.
     BitcoinBlock* genesis_block=malloc(sizeof(BitcoinBlock));
     get_dummy_genesis_block(genesis_block);
