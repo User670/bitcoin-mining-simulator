@@ -13,6 +13,7 @@
 #include <sys/wait.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <errno.h>
 
 #include <sha2.h>
 #include <bitcoin_utils.h>
@@ -25,6 +26,7 @@
 
 
 typedef struct{
+    // TODO: add more fields if you need
     int chain_height;
     BitcoinBlock new_block;
     char genesis_block_name[100];
@@ -81,18 +83,19 @@ int main(){
     }else{
         is_first_create=1;
     }
-    rv=ftruncate(fd, sizeof(SharedData1));
+    rv=ftruncate(fd, sizeof(SharedData));
     if(rv==-1){
         perror("ftruncate for /minechain");
         exit(1);
     }
-    SharedData1* sd=mmap(NULL, sizeof(SharedData1), PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+    SharedData* sd=mmap(NULL, sizeof(SharedData), PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
     if(sd==MAP_FAILED){
         perror("mmap for /minechain");
         exit(1);
     }
     
     int process_count;
+    sem_t* start_sync_sem=sem_open("/minechainsync", O_CREAT|O_RDWR, 0666, 0);
     
     if(is_first_create){
         // initialize the shared data
@@ -146,70 +149,62 @@ int main(){
         sem_wait(start_sync_sem);
     }
     
-    sem_t* start_sync_sem=sem_open("/minechainsync", O_CREAT|O_RDWR, 0666, 0);
+    // TODO: initialize more mutex if needed
     sem_t* chain_access_mutex=sem_open("/minechainmutex", O_CREAT|O_RDWR, 0666, 1);
     
     int working_on_height;
     BitcoinHeader working_on_header;
     BitcoinBlock* new_block;
     while(1){
+        // TODO: a lot of logic needs to be added here!
         if(sd->chain_height==MAX_BLOCKCHAIN_HEIGHT){
             printf("Max chain height reached, breaking out of loop\n");
             break;
         }
         
-        // store current chain height to compare against
         // do mutex in case another process is writing and I read corrupted data
         sem_wait(chain_access_mutex);
         
-        working_on_height=sd->chain_height;
         new_block=malloc(sizeof(BitcoinBlock));
         memcpy(new_block, &(sd->new_block), sizeof(BitcoinBlock));
         working_on_header=new_block->header;
         
         sem_post(chain_access_mutex);
         
+        // Again, this is a basic loop, and you need to insert more logic
         for(int i=0; i<2147483647; i++){
-            if(sd->chain_height != working_on_height){
-                // someone added a block
-                // stop mining and work on new block
-                printf("A new block has been added, abandoning current block\n");
-                break;
-            }
             
             working_on_header.nonce=i;
             if(is_good_block(&working_on_header, target)){
-                sem_wait(chain_access_mutex);
-                if(sd->chain_height != working_on_height){
-                    printf("Found a valid nonce, but someone beat me to it\n");
-                }else{
-                    printf("Found a valid nonce, storing to chain\n");
-                    
-                    new_block->header.nonce=i;
-                    char hash[32];
-                    dsha(&(new_block->header), sizeof(BitcoinBlock), hash);
-                    char name[100];
-                    rv=attach_block(sd->genesis_block_name, new_block, name);
-                    if(rv<0){
-                        perror_custom(rv, "main loop -> attach_block");
-                    }
-                    write_block_in_shm(name, new_block);
-                    
-                    sd->chain_height+=1;
-                    // generate a new block for everyone to mine
-                    initialize_block(new_block, difficulty);
-                    memcpy(&(new_block->header.previous_block_hash), hash, 32);
-                    randomize_block_transactions(new_block);
-                    memcpy(&(sd->new_block), new_block, sizeof(BitcoinBlock));
-                    
+                
+                printf("Found a valid nonce, storing to chain\n");
+                
+                // attach the block to the blockchain
+                new_block->header.nonce=i;
+                char hash[32];
+                dsha(&(new_block->header), sizeof(BitcoinBlock), hash);
+                char name[100];
+                rv=attach_block(sd->genesis_block_name, new_block, name);
+                if(rv<0){
+                    perror_custom(rv, "main loop -> attach_block");
                 }
-                sem_post(chain_access_mutex);
+                write_block_in_shm(name, new_block);
+                
+                sd->chain_height+=1;
+                // generate a new block for everyone to mine
+                initialize_block(new_block, difficulty);
+                memcpy(&(new_block->header.previous_block_hash), hash, 32);
+                randomize_block_transactions(new_block);
+                memcpy(&(sd->new_block), new_block, sizeof(BitcoinBlock));
+                    
                 break;
             }
         }
         
     }
     
+    
+    // Finishing up
     if(is_first_create){
         char name1[100];
         char name2[100];

@@ -23,3 +23,11 @@ For notes on changes made in task templates, see `templates.md`.
 Also, `simply` -> `simplify` (comment where I explained the dummy genesis block)
 
 Also need to `free` two pointers.
+
+## srcv4_cleanup -> part02Q2
+
+`errno.h` wasn't imported. Also need to be retroactively added to all other main.c's, if they weren't already
+
+not all `SharedData1` renamed to `SharedData` (3 instances, all within a few lines)
+
+The semaphore for the beginning of the thing was defined later than it's meant to be used, need to move
